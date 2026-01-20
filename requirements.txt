@@ -1,0 +1,35 @@
+# Core
+torch>=2.0.0
+torchaudio>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Audio Processing
+librosa>=0.10.0
+soundfile>=0.12.0
+praat-parselmouth>=0.4.3
+
+# ASR - PhoWhisper
+transformers>=4.36.0
+accelerate>=0.25.0
+
+# NLP - PhoBERT
+underthesea>=6.8.0
+
+# Training
+wandb>=0.16.0
+tensorboard>=2.15.0
+
+# LLM Labeling
+google-generativeai>=0.3.0
+
+# Utilities
+pyyaml>=6.0.0
+tqdm>=4.66.0
+pandas>=2.1.0
+matplotlib>=3.8.0
+seaborn>=0.13.0
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0

@@ -1,0 +1,48 @@
+# Viet-TurnEdge Model Configuration
+
+model:
+  name: "viet_turn_edge"
+  num_classes: 3  # Turn-Yield, Turn-Hold, Backchannel
+
+acoustic_branch:
+  type: "causal_dilated_tcn"
+  input_dim: 42  # 40 Mel + F0 + Energy
+  hidden_dim: 128
+  output_dim: 64
+  num_layers: 4
+  kernel_size: 3
+  dilation_base: 2  # [1, 2, 4, 8]
+  dropout: 0.1
+
+linguistic_branch:
+  type: "phobert_full"
+  pretrained: "vinai/phobert-base-v2"
+  hidden_dim: 768
+  output_dim: 64
+  freeze_embeddings: true
+
+asr:
+  model: "vinai/PhoWhisper-base"
+  sliding_window_sec: 3.0
+  stride_sec: 0.5
+
+fusion:
+  type: "gmu"
+  acoustic_dim: 64
+  linguistic_dim: 64
+  hidden_dim: 128
+  output_dim: 64
+
+classifier:
+  hidden_dim: 32
+  num_classes: 3
+  dropout: 0.2
+
+audio:
+  sample_rate: 16000
+  frame_length_ms: 20
+  frame_shift_ms: 10
+  n_mels: 40
+  n_fft: 512
+  use_f0: true
+  use_energy: true
