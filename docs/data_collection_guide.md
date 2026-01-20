@@ -1,190 +1,112 @@
-# 🎯 Hướng dẫn Xây dựng Dataset Turn-Taking cho Tiếng Việt
+# 🔧 Semi-Auto + Review Pipeline cho Turn-Taking Dataset
 
-## Tổng quan Pipeline
+## Tổng quan Workflow
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       CUSTOM DATASET PIPELINE                                │
+│                    SEMI-AUTO + REVIEW PIPELINE                               │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│  1. THU THẬP        2. XỬ LÝ           3. GÁN NHÃN        4. CHUẨN HÓA      │
-│  ───────────        ────────           ──────────         ─────────         │
+│   PHASE A: AUTO              PHASE B: REVIEW           PHASE C: FINAL       │
+│   ═════════════              ═════════════            ═════════════          │
 │                                                                              │
-│  YouTube/Podcast → Diarization →  LLM Labeling →  Train/Val/Test           │
-│  (50-100 hours)    + ASR            (Gemini)         Split                  │
+│   YouTube/Podcast     →     Label Studio      →     Quality Dataset         │
+│        ↓                         ↓                        ↓                 │
+│   whisperX/pyannote        Human Review            Train/Val/Test           │
+│        ↓                         ↓                                          │
+│   LLM Pre-labeling          Corrections                                     │
+│                                                                              │
+│   Time: ~2h/50h audio      Time: ~10h/50h audio    Time: ~1h               │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## Phase 1: Thu thập dữ liệu (Data Collection)
+## Phase A: Auto-Processing
 
-### Nguồn dữ liệu đề xuất
-
-| Nguồn | Loại | Ưu điểm | Link |
-|-------|------|---------|------|
-| **YouTube Interviews** | Video/Audio | Dễ crawl, nhiều chủ đề | yt-dlp |
-| **Vietcetera Podcast** | Audio | Chất lượng cao, 2 người | Spotify/RSS |
-| **Radio VOV** | Audio | Hội thoại tự nhiên | Website |
-
-### Tiêu chí chọn video/audio:
-- ✅ **2 người** nói chuyện (tốt nhất)
-- ✅ Âm thanh rõ ràng, ít nhiễu
-- ✅ Hội thoại tự nhiên (không đọc kịch bản)
-- ✅ Độ dài 10-60 phút mỗi episode
-- ❌ Tránh: Đọc tin tức, thuyết trình 1 người
-
-### Script crawl YouTube:
+### A1. Thu thập Audio (2-3 giờ)
 
 ```bash
-# Cài đặt
+# Download từ YouTube (ví dụ podcast interview)
 pip install yt-dlp
 
-# Download audio từ playlist/channel
-yt-dlp --extract-audio --audio-format wav --audio-quality 0 \
-    -o "data/raw/youtube/%(title)s.%(ext)s" \
-    "https://www.youtube.com/playlist?list=PLxxxxxx"
-
-# Hoặc từ video đơn lẻ
-yt-dlp -x --audio-format wav "https://www.youtube.com/watch?v=xxxxx"
+# Download playlist
+yt-dlp --extract-audio --audio-format wav -o "data/raw/%(title)s.%(ext)s" \
+    "https://www.youtube.com/playlist?list=YOUR_PLAYLIST"
 ```
 
-### Mục tiêu: 50-100 giờ audio hội thoại
+### A2. Auto Diarization + ASR (5 giờ GPU cho 50h audio)
 
----
-
-## Phase 2: Xử lý Audio (Processing)
-
-### 2.1 Speaker Diarization (Tách người nói)
-
-**Tool:** `pyannote-audio` - SOTA speaker diarization
+**Dùng whisperX** (tích hợp Whisper + Diarization):
 
 ```python
-# Cài đặt
-pip install pyannote.audio
+# scripts/auto_process.py
+import whisperx
+import json
+from pathlib import Path
 
-# Code diarization
-from pyannote.audio import Pipeline
-
-# Cần Hugging Face token (miễn phí)
-pipeline = Pipeline.from_pretrained(
-    "pyannote/speaker-diarization-3.1",
-    use_auth_token="YOUR_HF_TOKEN"
-)
-
-# Chạy diarization
-diarization = pipeline("audio.wav")
-
-# Output: ai nói lúc nào
-for turn, _, speaker in diarization.itertracks(yield_label=True):
-    print(f"{turn.start:.1f}s - {turn.end:.1f}s: {speaker}")
-    # 0.0s - 2.5s: SPEAKER_00
-    # 2.7s - 5.1s: SPEAKER_01
-    # 5.3s - 8.2s: SPEAKER_00
-```
-
-### 2.2 ASR Transcription (Chuyển giọng nói thành text)
-
-**Tool:** `PhoWhisper-base` - SOTA Vietnamese ASR
-
-```python
-from transformers import pipeline
-
-asr = pipeline(
-    "automatic-speech-recognition",
-    model="vinai/PhoWhisper-base",
-    chunk_length_s=30,
-    return_timestamps=True  # Quan trọng!
-)
-
-result = asr("audio.wav")
-
-# Output với timestamps
-for chunk in result["chunks"]:
-    print(f"{chunk['timestamp'][0]:.1f}s: {chunk['text']}")
-    # 0.0s: "Anh đi đâu đấy nhỉ"
-    # 2.8s: "Ừ anh đi chợ mua đồ"
-```
-
-### 2.3 Merge Diarization + ASR
-
-```python
-def merge_diarization_asr(diarization, asr_result):
-    """Kết hợp ai nói + nói gì"""
-    segments = []
+def process_audio(audio_path: str, output_dir: str):
+    """Auto diarization + ASR với whisperX"""
     
-    for turn, _, speaker in diarization.itertracks(yield_label=True):
-        # Tìm text tương ứng với khoảng thời gian này
-        text = ""
-        for chunk in asr_result["chunks"]:
-            chunk_start = chunk["timestamp"][0]
-            chunk_end = chunk["timestamp"][1] or chunk_start + 1
-            
-            # Nếu chunk nằm trong turn này
-            if chunk_start >= turn.start and chunk_end <= turn.end:
-                text += chunk["text"] + " "
-        
-        segments.append({
-            "speaker": speaker,
-            "start": turn.start,
-            "end": turn.end,
-            "text": text.strip()
-        })
+    # Load model
+    device = "cuda"  # hoặc "cpu"
+    model = whisperx.load_model("large-v3", device)
     
-    return segments
+    # Load audio
+    audio = whisperx.load_audio(audio_path)
+    
+    # 1. ASR
+    result = model.transcribe(audio, language="vi")
+    
+    # 2. Align timestamps
+    model_a, metadata = whisperx.load_align_model(
+        language_code="vi", device=device
+    )
+    result = whisperx.align(
+        result["segments"], model_a, metadata, audio, device
+    )
+    
+    # 3. Diarization
+    diarize_model = whisperx.DiarizationPipeline(
+        use_auth_token="YOUR_HF_TOKEN"
+    )
+    diarize_segments = diarize_model(audio)
+    
+    # 4. Assign speakers
+    result = whisperx.assign_word_speakers(diarize_segments, result)
+    
+    # Save
+    output_path = Path(output_dir) / f"{Path(audio_path).stem}.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
+    
+    return result
+
+# Chạy cho tất cả files
+for audio_file in Path("data/raw").glob("*.wav"):
+    process_audio(str(audio_file), "data/processed/auto")
 ```
 
-**Output mẫu:**
-```json
-[
-    {"speaker": "A", "start": 0.0, "end": 2.5, "text": "Anh đi đâu đấy nhỉ"},
-    {"speaker": "B", "start": 2.7, "end": 5.1, "text": "Ừ anh đi chợ mua đồ"},
-    {"speaker": "A", "start": 5.3, "end": 8.2, "text": "Vậy mua giúp em ít rau nhé"}
-]
-```
-
----
-
-## Phase 3: Gán nhãn Turn-Taking (LLM Labeling)
-
-### Tại sao dùng LLM?
-
-```
-TRƯỚC: Gán nhãn thủ công → Tốn 100+ giờ cho 50h audio
-SAU:   LLM-as-Judge      → Tự động, chỉ cần review 10%
-```
-
-### Prompt cho Gemini:
+### A3. LLM Pre-labeling (2 giờ API)
 
 ```python
+# scripts/llm_prelabel.py
+import json
 import google.generativeai as genai
 
-PROMPT = """Bạn là chuyên gia ngôn ngữ học hội thoại tiếng Việt.
+PROMPT = """Phân tích hội thoại và gán nhãn turn-taking:
+- YIELD: Kết thúc lượt nói (hư từ: nhé, nhỉ, ạ, hả)
+- HOLD: Chưa xong (hư từ: mà, thì, là, vì)  
+- BACKCHANNEL: Phản hồi ngắn (ừ, vâng, ờ)
 
-Phân tích đoạn hội thoại sau và gán nhãn cho MỖI PHÁT NGÔN:
-
-- YIELD: Người nói KẾT THÚC, sẵn sàng nhường lời
-  (Dấu hiệu: hư từ cuối câu như "nhé", "nhỉ", "à", "hả", "ạ", giọng đi xuống)
-
-- HOLD: Người nói CHƯA XONG, sẽ tiếp tục
-  (Dấu hiệu: câu còn treo, có "mà", "thì", "là", "vì", giọng treo)
-
-- BACKCHANNEL: Phản hồi ngắn KHÔNG chiếm lượt
-  (Ví dụ: "ừ", "vâng", "ờ", "à", "thế à", "vậy hả")
-
-HỘI THOẠI:
 {conversation}
 
-Trả về JSON:
-[
-  {{"speaker": "A", "text": "...", "label": "YIELD/HOLD/BACKCHANNEL", "reason": "..."}}
-]
-"""
+Output JSON: [{"segment_id": 0, "label": "YIELD/HOLD/BACKCHANNEL", "confidence": 0.9}]"""
 
-def label_conversation(segments):
+def prelabel_conversation(segments):
     conversation = "\n".join([
-        f"[{s['speaker']}] ({s['start']:.1f}s): {s['text']}"
+        f"[{s.get('speaker', '?')}] {s['text']}" 
         for s in segments
     ])
     
@@ -197,65 +119,30 @@ def label_conversation(segments):
     return json.loads(response.text)
 ```
 
-### Quality Control (Kiểm tra chất lượng):
-
-```python
-# Sau khi LLM gán nhãn, kiểm tra tự động
-def validate_labels(labeled_segments):
-    issues = []
-    
-    for seg in labeled_segments:
-        text = seg["text"].lower()
-        label = seg["label"]
-        
-        # Rule-based validation
-        if label == "YIELD" and any(h in text for h in ["mà", "thì", "vì"]):
-            issues.append(f"Possible HOLD mislabeled as YIELD: {text}")
-        
-        if label == "BACKCHANNEL" and len(text.split()) > 5:
-            issues.append(f"Long text labeled as BACKCHANNEL: {text}")
-    
-    return issues
-```
-
----
-
-## Phase 4: Chuẩn bị Dataset cuối cùng
-
-### Cấu trúc thư mục:
-
-```
-data/
-├── raw/                          # Audio gốc
-│   └── youtube/
-│       ├── interview_001.wav
-│       └── interview_002.wav
-├── processed/
-│   ├── diarization/              # Speaker segments
-│   │   └── interview_001.json
-│   ├── transcripts/              # ASR output
-│   │   └── interview_001.json
-│   └── labeled/                  # Final labels
-│       └── interview_001.json
-└── final/
-    ├── train.json                # 80%
-    ├── val.json                  # 10%
-    └── test.json                 # 10%
-```
-
-### Format dữ liệu cuối:
-
+**Output sau Phase A:**
 ```json
 {
   "audio_file": "interview_001.wav",
   "segments": [
     {
+      "id": 0,
       "start": 0.0,
       "end": 2.5,
-      "speaker": "A",
+      "speaker": "SPEAKER_00",
       "text": "Anh đi đâu đấy nhỉ",
-      "label": "YIELD",
-      "audio_features": "processed/features/interview_001_seg_0.pt"
+      "auto_label": "YIELD",
+      "confidence": 0.85,
+      "needs_review": false
+    },
+    {
+      "id": 1,
+      "start": 2.7,
+      "end": 2.9,
+      "speaker": "SPEAKER_01",
+      "text": "Ừ",
+      "auto_label": "BACKCHANNEL",
+      "confidence": 0.6,
+      "needs_review": true  // Low confidence → flag for review
     }
   ]
 }
@@ -263,50 +150,229 @@ data/
 
 ---
 
-## Tóm tắt Workflow
+## Phase B: Human Review với Label Studio
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                    COMPLETE WORKFLOW                              │
-├──────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  1. yt-dlp         Download YouTube/Podcast audio                │
-│       ↓                                                           │
-│  2. pyannote       Speaker diarization (ai nói lúc nào)          │
-│       ↓                                                           │
-│  3. PhoWhisper     ASR transcription (nói gì)                    │
-│       ↓                                                           │
-│  4. Merge          Kết hợp speaker + text + timestamp            │
-│       ↓                                                           │
-│  5. Gemini         LLM gán nhãn YIELD/HOLD/BACKCHANNEL           │
-│       ↓                                                           │
-│  6. Validate       Rule-based QC + human review 10%              │
-│       ↓                                                           │
-│  7. Split          Train/Val/Test                                 │
-│       ↓                                                           │
-│  8. Features       Trích xuất Mel + F0 + Energy                  │
-│                                                                   │
-│  OUTPUT: Dataset sẵn sàng cho training                           │
-│                                                                   │
-└──────────────────────────────────────────────────────────────────┘
+### B1. Setup Label Studio
+
+```bash
+# Cài đặt
+pip install label-studio
+
+# Khởi động
+label-studio start --port 8080
 ```
 
-### Thời gian ước tính:
-| Bước | Thời gian (50h audio) |
-|------|----------------------|
-| Crawl | 2-3 giờ |
-| Diarization | ~5 giờ (GPU) |
-| ASR | ~3 giờ (GPU) |
-| LLM Labeling | ~2 giờ (API) |
-| **Tổng** | **~12 giờ** |
+Truy cập: http://localhost:8080
+
+### B2. Tạo Project
+
+1. **Create Project** → "Viet-Turn Review"
+2. **Labeling Setup** → Custom Template:
+
+```xml
+<View>
+  <Header value="Audio Segment"/>
+  <Audio name="audio" value="$audio_url"/>
+  
+  <Header value="Transcript"/>
+  <Text name="transcript" value="$text"/>
+  
+  <Header value="Speaker"/>
+  <Text name="speaker" value="$speaker"/>
+  
+  <Header value="Auto Label (confidence: $confidence)"/>
+  <Text name="auto_label" value="$auto_label"/>
+  
+  <Header value="Your Label"/>
+  <Choices name="turn_label" toName="audio" choice="single">
+    <Choice value="YIELD" hint="Kết thúc lượt - nhé, nhỉ, ạ"/>
+    <Choice value="HOLD" hint="Chưa xong - mà, thì, là"/>
+    <Choice value="BACKCHANNEL" hint="Phản hồi ngắn - ừ, vâng"/>
+  </Choices>
+  
+  <Header value="Issues (optional)"/>
+  <Choices name="issues" toName="audio" choice="multiple">
+    <Choice value="WRONG_SPEAKER"/>
+    <Choice value="WRONG_TEXT"/>
+    <Choice value="OVERLAP"/>
+    <Choice value="NOISE"/>
+  </Choices>
+</View>
+```
+
+### B3. Import Data
+
+```python
+# scripts/export_to_labelstudio.py
+import json
+
+def export_for_labelstudio(processed_dir, output_file):
+    tasks = []
+    
+    for json_file in Path(processed_dir).glob("*.json"):
+        data = json.load(open(json_file))
+        
+        for seg in data["segments"]:
+            # Chỉ review segments có confidence thấp hoặc cần check
+            if seg.get("needs_review", False) or seg.get("confidence", 1) < 0.7:
+                tasks.append({
+                    "data": {
+                        "audio_url": f"/data/audio/{data['audio_file']}",
+                        "text": seg["text"],
+                        "speaker": seg["speaker"],
+                        "auto_label": seg["auto_label"],
+                        "confidence": seg["confidence"],
+                        "segment_id": seg["id"],
+                        "source_file": json_file.name
+                    }
+                })
+    
+    with open(output_file, "w") as f:
+        json.dump(tasks, f, ensure_ascii=False, indent=2)
+    
+    print(f"Exported {len(tasks)} tasks for review")
+
+export_for_labelstudio("data/processed/auto", "data/labelstudio_tasks.json")
+```
+
+### B4. Review Guidelines
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    REVIEW CHECKLIST                              │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  1. NGHE AUDIO trước khi đọc text                               │
+│                                                                  │
+│  2. KIỂM TRA:                                                    │
+│     □ Speaker đúng chưa?                                        │
+│     □ Text đúng chưa? (đặc biệt hư từ cuối câu)                │
+│     □ Có overlap không?                                         │
+│                                                                  │
+│  3. GÁN NHÃN:                                                    │
+│     • YIELD: Giọng đi xuống + hư từ kết thúc                   │
+│     • HOLD: Giọng treo + câu chưa xong                         │
+│     • BACKCHANNEL: Ngắn + không chiếm lượt                     │
+│                                                                  │
+│  4. FLAG ISSUES nếu có vấn đề                                   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### B5. Export & Merge
+
+```python
+# scripts/merge_reviewed.py
+def merge_labels(auto_dir, reviewed_export, output_dir):
+    """Merge auto labels với reviewed corrections"""
+    
+    # Load reviewed
+    reviewed = json.load(open(reviewed_export))
+    reviewed_map = {
+        (r["source_file"], r["segment_id"]): r["label"]
+        for r in reviewed
+    }
+    
+    # Merge
+    for json_file in Path(auto_dir).glob("*.json"):
+        data = json.load(open(json_file))
+        
+        for seg in data["segments"]:
+            key = (json_file.name, seg["id"])
+            if key in reviewed_map:
+                seg["label"] = reviewed_map[key]  # Use reviewed
+                seg["reviewed"] = True
+            else:
+                seg["label"] = seg["auto_label"]  # Keep auto
+                seg["reviewed"] = False
+        
+        # Save
+        output_path = Path(output_dir) / json_file.name
+        json.dump(data, open(output_path, "w"), ensure_ascii=False, indent=2)
+```
 
 ---
 
-## Yêu cầu phần cứng/API:
+## Phase C: Final Dataset
 
-| Resource | Requirement |
-|----------|-------------|
-| GPU | Recommended (RTX 3060+) |
-| HuggingFace Token | Free (cho pyannote) |
-| Google API Key | Free tier đủ dùng |
-| Storage | ~100GB cho 50h audio |
+### C1. Quality Check
+
+```python
+# scripts/quality_check.py
+def check_quality(data_dir):
+    stats = {"total": 0, "reviewed": 0, "by_label": {}}
+    issues = []
+    
+    for json_file in Path(data_dir).glob("*.json"):
+        data = json.load(open(json_file))
+        
+        for seg in data["segments"]:
+            stats["total"] += 1
+            if seg.get("reviewed"):
+                stats["reviewed"] += 1
+            
+            label = seg["label"]
+            stats["by_label"][label] = stats["by_label"].get(label, 0) + 1
+            
+            # Check issues
+            if label == "BACKCHANNEL" and len(seg["text"].split()) > 5:
+                issues.append(f"Long BACKCHANNEL: {seg['text']}")
+    
+    return stats, issues
+```
+
+### C2. Train/Val/Test Split
+
+```python
+# scripts/split_dataset.py
+from sklearn.model_selection import train_test_split
+
+def split_dataset(data_dir, output_dir, test_size=0.1, val_size=0.1):
+    all_files = list(Path(data_dir).glob("*.json"))
+    
+    # Split by file (không split trong file)
+    train_files, test_files = train_test_split(all_files, test_size=test_size)
+    train_files, val_files = train_test_split(train_files, test_size=val_size/(1-test_size))
+    
+    # Save splits
+    for split_name, files in [("train", train_files), ("val", val_files), ("test", test_files)]:
+        split_data = []
+        for f in files:
+            split_data.extend(json.load(open(f))["segments"])
+        
+        with open(Path(output_dir) / f"{split_name}.json", "w") as out:
+            json.dump(split_data, out, ensure_ascii=False, indent=2)
+        
+        print(f"{split_name}: {len(split_data)} segments from {len(files)} files")
+```
+
+---
+
+## Timeline ước tính
+
+| Phase | Task | Time (50h audio) |
+|-------|------|------------------|
+| A | Download audio | 2-3h |
+| A | whisperX processing | 5h (GPU) |
+| A | LLM pre-labeling | 2h |
+| B | Setup Label Studio | 1h |
+| B | Human review (~20% data) | **8-10h** |
+| C | Merge + QC | 1h |
+| **Total** | | **~20h** |
+
+---
+
+## Thư mục Project
+
+```
+data/
+├── raw/                    # Audio gốc
+├── processed/
+│   ├── auto/              # Output từ whisperX + LLM
+│   └── reviewed/          # Sau khi merge review
+├── labelstudio/           # Export từ Label Studio
+└── final/
+    ├── train.json
+    ├── val.json
+    └── test.json
+```
