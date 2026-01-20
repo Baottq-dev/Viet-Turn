@@ -70,7 +70,7 @@ venv.bak/
 .ipynb_checkpoints
 
 # Data files
-data/
+datasets/
 # *.wav
 # *.mp3
 # *.mp4
