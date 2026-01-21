@@ -26,7 +26,7 @@ google-generativeai>=0.3.0
 
 # Data Pipeline
 yt-dlp  # For downloading audio
-label-studio  # For human review (optional)
+# label-studio  # Optional: install separately with: pip install label-studio
 
 # Utilities
 python-dotenv>=1.0.0
