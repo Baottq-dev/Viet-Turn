@@ -20,6 +20,13 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+# Load .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed
+
 try:
     import google.generativeai as genai
 except ImportError:

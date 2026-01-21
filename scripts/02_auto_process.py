@@ -19,6 +19,13 @@ from pathlib import Path
 from typing import Dict, List, Optional
 import warnings
 
+# Load .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed
+
 warnings.filterwarnings("ignore")
 
 # Check imports
