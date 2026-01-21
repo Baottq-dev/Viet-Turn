@@ -9,9 +9,10 @@ librosa>=0.10.0
 soundfile>=0.12.0
 praat-parselmouth>=0.4.3
 
-# ASR - PhoWhisper
+# ASR - PhoWhisper & WhisperX
 transformers>=4.36.0
 accelerate>=0.25.0
+whisperx  # For diarization pipeline
 
 # NLP - PhoBERT
 underthesea>=6.8.0
@@ -23,7 +24,12 @@ tensorboard>=2.15.0
 # LLM Labeling
 google-generativeai>=0.3.0
 
+# Data Pipeline
+yt-dlp  # For downloading audio
+label-studio  # For human review (optional)
+
 # Utilities
+python-dotenv>=1.0.0
 pyyaml>=6.0.0
 tqdm>=4.66.0
 pandas>=2.1.0
