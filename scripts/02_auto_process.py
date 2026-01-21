@@ -15,6 +15,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 import warnings
@@ -32,6 +33,14 @@ warnings.filterwarnings("ignore")
 try:
     import torch
     import whisperx
+    
+    # Fix PyTorch 2.6+ weights_only issue with pyannote models
+    try:
+        from omegaconf import ListConfig, DictConfig
+        torch.serialization.add_safe_globals([ListConfig, DictConfig])
+    except Exception:
+        pass
+        
 except ImportError as e:
     print("❌ Missing dependencies!")
     print("   Cài đặt: pip install whisperx torch torchaudio")
@@ -86,13 +95,20 @@ def process_single_audio(
     # 2. Load audio
     print("   🔊 Loading audio...")
     audio = whisperx.load_audio(audio_path)
+    duration_sec = len(audio) / 16000
+    duration_min = duration_sec / 60
     
     # 3. Transcribe
-    print("   📝 Transcribing (ASR)...")
+    print(f"   📝 Transcribing ({duration_min:.1f} min audio)...")
+    start_time = time.time()
     result = model.transcribe(audio, batch_size=batch_size, language="vi")
+    elapsed = time.time() - start_time
+    speed = duration_sec / elapsed if elapsed > 0 else 0
+    print(f"      ✓ Done in {elapsed:.0f}s ({speed:.1f}x realtime)")
     
     # 4. Align timestamps
     print("   ⏱️  Aligning timestamps...")
+    align_start = time.time()
     try:
         model_a, metadata = whisperx.load_align_model(
             language_code="vi", 
@@ -106,12 +122,14 @@ def process_single_audio(
             device,
             return_char_alignments=False
         )
+        print(f"      ✓ Done in {time.time() - align_start:.0f}s")
     except Exception as e:
         print(f"   ⚠️  Alignment failed: {e}")
     
     # 5. Diarization (nếu có token)
     if hf_token:
         print("   👥 Speaker diarization...")
+        diar_start = time.time()
         try:
             diarize_model = whisperx.DiarizationPipeline(
                 use_auth_token=hf_token, 
@@ -119,6 +137,7 @@ def process_single_audio(
             )
             diarize_segments = diarize_model(audio)
             result = whisperx.assign_word_speakers(diarize_segments, result)
+            print(f"      ✓ Done in {time.time() - diar_start:.0f}s")
         except Exception as e:
             print(f"   ⚠️  Diarization failed: {e}")
     
@@ -200,9 +219,9 @@ def process_directory(
     
     print(f"   🔄 Processing {len(to_process)} files...")
     
+    from tqdm import tqdm
     processed = []
-    for i, audio_file in enumerate(to_process, 1):
-        print(f"\n[{i}/{len(to_process)}]")
+    for audio_file in tqdm(to_process, desc="Processing", unit="file"):
         try:
             process_single_audio(
                 str(audio_file), output_dir, model_name, device, hf_token
