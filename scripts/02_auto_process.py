@@ -131,7 +131,8 @@ def process_single_audio(
         print("   👥 Speaker diarization...")
         diar_start = time.time()
         try:
-            diarize_model = whisperx.DiarizationPipeline(
+            from whisperx.diarize import DiarizationPipeline
+            diarize_model = DiarizationPipeline(
                 use_auth_token=hf_token, 
                 device=device
             )
