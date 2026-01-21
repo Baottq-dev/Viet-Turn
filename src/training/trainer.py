@@ -233,8 +233,6 @@ class Trainer:
     
     def _compute_f1(self, preds, labels):
         """Compute macro F1 score."""
-        from collections import Counter
-        
         num_classes = 3
         f1_scores = []
         

@@ -75,12 +75,12 @@ def cut_segments_from_json(
     output_dir: str,
     sample_rate: int = 16000,
     min_duration: float = 0.3
-) -> Dict:
+) -> tuple:
     """
     Cắt tất cả segments từ một JSON file.
     
     Returns:
-        Updated data dict with segment paths
+        Tuple of (data dict, cut_count, skip_count)
     """
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)

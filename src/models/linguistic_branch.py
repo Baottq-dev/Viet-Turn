@@ -45,7 +45,7 @@ class HuTuDetector(nn.Module):
             return 2
         return 3
         
-    def forward(self, text: str) -> torch.Tensor:
+    def forward(self, text: str, device: torch.device = None) -> torch.Tensor:
         """Detect markers and return embedding."""
         tokens = text.lower().split()
         
@@ -62,9 +62,13 @@ class HuTuDetector(nn.Module):
             # No marker found - use default
             marker_ids = [self.num_markers]
             marker_types = [3]
+        
+        # Create tensors on correct device
+        if device is None:
+            device = self.marker_embed.weight.device
             
-        ids_tensor = torch.LongTensor(marker_ids)
-        types_tensor = torch.LongTensor(marker_types)
+        ids_tensor = torch.LongTensor(marker_ids).to(device)
+        types_tensor = torch.LongTensor(marker_types).to(device)
         
         # Combine marker and type embeddings
         marker_embed = self.marker_embed(ids_tensor).mean(dim=0)
@@ -141,9 +145,8 @@ class PhoBERTEncoder(nn.Module):
         
         # Add marker features
         if self.use_markers and text is not None:
-            marker_embed = self.marker_detector(text)  # (marker_dim,)
+            marker_embed = self.marker_detector(text, device=pooled.device)  # (marker_dim,)
             marker_embed = marker_embed.unsqueeze(0).expand(pooled.size(0), -1)
-            marker_embed = marker_embed.to(pooled.device)
             pooled = torch.cat([pooled, marker_embed], dim=-1)
         elif self.use_markers:
             # Pad with zeros if no text provided
