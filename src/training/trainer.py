@@ -128,6 +128,11 @@ class Trainer:
             else:
                 logits = outputs
             
+            # Handle temporal dimension: take last frame for segment-level prediction
+            if logits.dim() == 3:
+                # logits: (B, T, num_classes) -> take last frame -> (B, num_classes)
+                logits = logits[:, -1, :]
+            
             # Compute loss
             loss = self.criterion(logits, labels)
             
@@ -200,14 +205,15 @@ class Trainer:
             else:
                 logits = outputs
             
+            # Handle temporal dimension: take last frame
+            if logits.dim() == 3:
+                logits = logits[:, -1, :]
+            
             loss = self.criterion(logits, labels)
             total_loss += loss.item()
             
             # Predictions
-            if logits.dim() == 3:
-                preds = logits[:, -1, :].argmax(dim=-1)
-            else:
-                preds = logits.argmax(dim=-1)
+            preds = logits.argmax(dim=-1)
             
             if labels.dim() == 2:
                 labels_flat = labels[:, -1]
