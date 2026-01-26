@@ -94,7 +94,7 @@ class PhoBERTEncoder(nn.Module):
         super().__init__()
         
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained)
-        self.phobert = AutoModel.from_pretrained(pretrained)
+        self.phobert = AutoModel.from_pretrained(pretrained, use_safetensors=True)
         
         # Freeze embeddings for efficiency
         if freeze_embeddings:
