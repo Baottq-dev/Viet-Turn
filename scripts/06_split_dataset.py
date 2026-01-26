@@ -17,6 +17,10 @@ from typing import Dict, List, Tuple
 from collections import Counter
 import sys
 
+# Encoding fix for Windows
+if sys.platform == "win32":
+    sys.stdout.reconfigure(encoding='utf-8')
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
