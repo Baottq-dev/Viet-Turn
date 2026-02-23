@@ -1,13 +1,92 @@
-https://www.youtube.com/watch?v=6xNBgypaICk
-https://www.youtube.com/watch?v=xaqR64hikXk
-https://www.youtube.com/watch?v=CnvDk1pqJVA
-https://www.youtube.com/watch?v=Q_gR5V0SITs
-https://www.youtube.com/watch?v=TneYjoLxI_0
-https://www.youtube.com/watch?v=Zho159IWRWo
-https://www.youtube.com/watch?v=q7uDJG8YQ5c
-https://www.youtube.com/watch?v=sDHaGGbWOr4
-https://www.youtube.com/watch?v=F6h-S6oUpuQ
-https://www.youtube.com/watch?v=tGCpHtR09p8
-https://www.youtube.com/watch?v=gXilVkw87kg
-https://www.youtube.com/watch?v=gNfUNVp1YAo
-https://www.youtube.com/watch?v=MdryA9eru8k
+# MM-VAP-VI Test Videos - Vietnamese 2-person conversations (podcast/interview)
+# Da dang kenh/the loai de test pipeline toan dien
+# Format: host + guest, Vietnamese, 30-120 min
+# Use with: yt-dlp -x --audio-format wav --audio-quality 0 -o "data/audio/%(id)s.%(ext)s" -a scripts/urls.txt
+
+# =============================================================================
+# 1. BAR STORIES (Dustin On The Go) - Entertainment talkshow
+#    Host: Dustin Phuc Nguyen + 1 nghe si, tro chuyen trong bar, unscripted
+#    Kenh: youtube.com/channel/UCMqWdkIyvwsl4L4yHVODD1w
+# =============================================================================
+
+# NSUT Thanh Loc - nghe si gao coi
+https://www.youtube.com/watch?v=PSGO2CFhBM8
+
+# Miu Le - ca si/dien vien
+https://www.youtube.com/watch?v=iOD9YfEkEdQ
+
+# Truc Nhan - ca si
+https://www.youtube.com/watch?v=QvwI2WtNVwc
+
+# =============================================================================
+# 2. HAVE A SIP (Vietcetera) - Lifestyle/Culture talkshow
+#    Host: Thuy Minh + 1 khach moi, phong van sau ve cuoc song
+# =============================================================================
+
+# #243 Van Mai Huong (ca si) ~57 phut
+https://www.youtube.com/watch?v=mUPQ2jDVUEs
+
+# #244 Truong Giang (dien vien hai) ~1h12
+https://www.youtube.com/watch?v=7qH_Jt1dNa0
+
+# =============================================================================
+# 3. VIETNAM INNOVATORS (Vietcetera) - Business/Tech/Startup
+#    Host: Hao Tran + business leaders, noi dung kinh doanh/cong nghe
+# =============================================================================
+
+# Ep376 - Macro Economic Expert
+https://www.youtube.com/watch?v=7gzW5d-1u6Q
+
+# Ep374 - Dominic Scriven (Dragon Capital)
+https://www.youtube.com/watch?v=TCR3tIN1tt4
+
+# =============================================================================
+# 4. KHONG CAY KHONG VE (Vietcetera) - Food/Culinary culture
+#    Host tro chuyen voi cac bep truong/chef ve am thuc Viet Nam
+# =============================================================================
+
+# Ep8 - Chef Sam Tran
+https://www.youtube.com/watch?v=xsDchkXuKYM
+
+# Ep6 - Chef Phan Le Anh Tu
+https://www.youtube.com/watch?v=3S57kOFXtw4
+
+# =============================================================================
+# 5. COI MO (Vietcetera) - Social/Sexuality/Taboo topics
+#    2 host + khach moi, trao doi ve cac chu de xa hoi mo
+# =============================================================================
+
+# SS3 Ep1: Toi la ai giua muon van dinh nghia?
+https://www.youtube.com/watch?v=eKCYKNyIag0
+
+# =============================================================================
+# TONG: 10 videos tu 5 show, 2 nguon khac nhau (Dustin On The Go + Vietcetera)
+# The loai: Entertainment, Lifestyle, Business, Food, Social
+# =============================================================================
+
+# --- KENH KHAC co the lay them bang yt-dlp (khong phai Vietcetera) ---
+#
+# Dustin On The Go / Bar Stories (playlist):
+#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/playlist?list=PLmjw17gIF28eneO3XAEQr97Qa9CK_SVYE"
+#
+# Giang Oi (vlog/podcast, 1.7M subs):
+#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/channel/UC-AJnWGWhPt3ReFnvzRZ-Kg/videos"
+#
+# Xuan Lan Official / Chuyen Ngai Noi (talkshow xa hoi, sieu mau Xuan Lan + khach moi):
+#   Tim tren YouTube: "Chuyện Ngại Nói với Xuân Lan"
+#
+# The Present Writer (Chi Nguyen PhD - giao duc/phat trien ban than):
+#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/c/ThePresentWriter/videos"
+#
+# Sunhuyn Podcast (tam su/self-love, 105 tap):
+#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/c/Sunhuyn95/videos"
+
+# --- PLAYLISTS Vietcetera ---
+# Have A Sip (251 tap):
+#   https://www.youtube.com/playlist?list=PLWrhnsc6Cvcrp7HmEWu8q0p95pRyGmpHi
+# Vietnam Innovators (245 tap):
+#   https://www.youtube.com/playlist?list=PLWrhnsc6CvcosEZ5eC29w_Eo6bhJ-ZOnR
+# Khong Cay Khong Ve:
+#   https://www.youtube.com/playlist?list=PLWrhnsc6Cvcr_s7tqvBDI-AwB-s-l4GsU
+# Coi Mo:
+#   https://www.youtube.com/playlist?list=PLWrhnsc6CvcqIT6eFANBxu0ltSjpm1oXI
