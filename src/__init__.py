@@ -1,1 +1,1 @@
-# Viet-TurnEdge: Vietnamese Turn-Taking Prediction
+# MM-VAP-VI: Multimodal Voice Activity Projection for Vietnamese
