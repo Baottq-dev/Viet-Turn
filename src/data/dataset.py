@@ -1,205 +1,152 @@
 """
-PyTorch Dataset classes cho Viet-Turn training.
-Hỗ trợ cả pre-cut segments và on-the-fly cutting.
+VAPDataset - Sliding window dataset for MM-VAP-VI training.
+
+Each sample is a window of audio + text + VAP labels from a conversation.
+Windows are 20s with 5s stride by default, yielding 1000 frames at 50fps.
 """
 
 import json
+import bisect
 import torch
-from torch.utils.data import Dataset, DataLoader
+import torchaudio
+from torch.utils.data import Dataset
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-import numpy as np
 
-try:
-    import librosa
-except ImportError:
-    librosa = None
+from src.utils.audio import load_audio_segment, frames_to_seconds
 
 
-class TurnTakingDataset(Dataset):
+class VAPDataset(Dataset):
     """
-    Dataset cho turn-taking prediction.
-    
-    Mỗi sample = 1 audio segment + label
+    Sliding window dataset for VAP training.
+
+    Each item returns:
+        - audio_waveform: (1, num_samples) raw audio for Wav2Vec2
+        - vap_labels: (num_frames,) class indices [0-255], -1 for invalid
+        - va_matrix: (2, num_frames) binary voice activity
+        - text: str, cumulative text available at window start
+        - text_snapshots: list of {frame, text} for within-window text updates
+        - file_id: str
+        - window_start_frame: int
     """
-    
-    LABEL_TO_ID = {"YIELD": 0, "HOLD": 1, "BACKCHANNEL": 2}
-    ID_TO_LABEL = {0: "YIELD", 1: "HOLD", 2: "BACKCHANNEL"}
-    
+
     def __init__(
         self,
-        data_path: str,
-        audio_processor = None,
-        use_precut: bool = True,
-        audio_dir: Optional[str] = None,
-        max_length_sec: float = 10.0,
-        sample_rate: int = 16000
+        manifest_path: str,
+        window_sec: float = 20.0,
+        stride_sec: float = 5.0,
+        frame_hz: int = 50,
+        sample_rate: int = 16000,
+        min_valid_ratio: float = 0.3,
     ):
         """
         Args:
-            data_path: Path to train.json / val.json / test.json
-            audio_processor: AudioProcessor instance for feature extraction
-            use_precut: If True, load pre-cut segment files. If False, cut on-the-fly
-            audio_dir: Directory with original audio (needed if use_precut=False)
-            max_length_sec: Maximum segment length in seconds
-            sample_rate: Audio sample rate
+            manifest_path: Path to manifest JSON (list of file entries).
+            window_sec: Window duration in seconds.
+            stride_sec: Stride between windows in seconds.
+            frame_hz: Frame rate (50fps for VAP).
+            sample_rate: Audio sample rate.
+            min_valid_ratio: Minimum ratio of valid (non -1) labels in a window.
         """
-        with open(data_path, "r", encoding="utf-8") as f:
-            self.segments = json.load(f)
-        
-        self.audio_processor = audio_processor
-        self.use_precut = use_precut
-        self.audio_dir = audio_dir
-        self.max_length = int(max_length_sec * sample_rate)
+        self.window_frames = int(window_sec * frame_hz)
+        self.stride_frames = int(stride_sec * frame_hz)
+        self.frame_hz = frame_hz
         self.sample_rate = sample_rate
-        
-        # Filter valid segments
-        self.segments = [s for s in self.segments if self._is_valid(s)]
-        
-        print(f"Loaded {len(self.segments)} segments from {data_path}")
-    
-    def _is_valid(self, segment: Dict) -> bool:
-        """Check if segment is valid for training"""
-        # Must have label
-        if "label" not in segment:
-            return False
-        
-        # Must have audio source
-        if self.use_precut:
-            return "audio_segment" in segment and Path(segment["audio_segment"]).exists()
-        else:
-            return "audio_file" in segment and "start" in segment and "end" in segment
-    
+        self.min_valid_ratio = min_valid_ratio
+
+        # Load manifest
+        with open(manifest_path, "r", encoding="utf-8") as f:
+            self.entries = json.load(f)
+
+        # Pre-load metadata and build window index
+        self.file_data = {}
+        self.windows = []  # (file_idx, start_frame)
+        self._build_index()
+
+    def _build_index(self):
+        """Build index of all valid windows across all files."""
+        for file_idx, entry in enumerate(self.entries):
+            file_id = entry["file_id"]
+
+            # Load labels to get frame count
+            labels = torch.load(entry["vap_label_path"], weights_only=True)
+            num_frames = labels.shape[0]
+
+            # Pre-load VA matrix to avoid repeated disk I/O in __getitem__
+            va_matrix = torch.load(entry["va_matrix_path"], weights_only=True)
+
+            # Load text alignment
+            text_snapshots = []
+            if entry.get("text_frames_path") and Path(entry["text_frames_path"]).exists():
+                with open(entry["text_frames_path"], "r", encoding="utf-8") as f:
+                    text_data = json.load(f)
+                text_snapshots = text_data.get("text_snapshots", [])
+
+            self.file_data[file_idx] = {
+                "entry": entry,
+                "num_frames": num_frames,
+                "labels": labels,
+                "va_matrix": va_matrix,
+                "text_snapshots": text_snapshots,
+            }
+
+            # Generate windows
+            start = 0
+            while start + self.window_frames <= num_frames:
+                # Check if window has enough valid labels
+                window_labels = labels[start:start + self.window_frames]
+                valid_ratio = (window_labels >= 0).float().mean().item()
+                if valid_ratio >= self.min_valid_ratio:
+                    self.windows.append((file_idx, start))
+                start += self.stride_frames
+
     def __len__(self) -> int:
-        return len(self.segments)
-    
-    def __getitem__(self, idx: int) -> Tuple[torch.Tensor, int, Dict]:
-        """
-        Returns:
-            - features: Audio features tensor
-            - label: Label ID (0, 1, or 2)
-            - metadata: Dict with text, speaker, etc.
-        """
-        segment = self.segments[idx]
-        
-        # Load audio
-        if self.use_precut:
-            audio = self._load_precut(segment)
-        else:
-            audio = self._load_onthefly(segment)
-        
-        # Pad or truncate to max_length
-        if len(audio) > self.max_length:
-            audio = audio[:self.max_length]
-        elif len(audio) < self.max_length:
-            audio = np.pad(audio, (0, self.max_length - len(audio)))
-        
-        # Extract features
-        if self.audio_processor is not None:
-            features = self.audio_processor(audio)
-        else:
-            features = torch.FloatTensor(audio)
-        
-        # Get label
-        label_str = segment.get("label", "YIELD").upper()
-        label = self.LABEL_TO_ID.get(label_str, 0)
-        
-        # Metadata
-        metadata = {
-            "text": segment.get("text", ""),
-            "speaker": segment.get("speaker", ""),
-            "segment_id": segment.get("id", idx),
-            "source_file": segment.get("source_file", "")
+        return len(self.windows)
+
+    def __getitem__(self, idx: int) -> Dict:
+        file_idx, start_frame = self.windows[idx]
+        data = self.file_data[file_idx]
+        entry = data["entry"]
+        end_frame = start_frame + self.window_frames
+
+        # Audio: load segment
+        start_sec = frames_to_seconds(start_frame, self.frame_hz)
+        end_sec = frames_to_seconds(end_frame, self.frame_hz)
+        audio_waveform = load_audio_segment(
+            entry["audio_path"],
+            start_sec, end_sec,
+            sample_rate=self.sample_rate,
+        )  # (1, num_samples)
+
+        # VAP labels for this window
+        vap_labels = data["labels"][start_frame:end_frame]
+
+        # VA matrix for this window (pre-loaded)
+        va_matrix = data["va_matrix"][:, start_frame:end_frame]
+
+        # Text: find the latest text snapshot at or before the window end
+        text_snapshots = data["text_snapshots"]
+        snapshot_frames = [s["frame"] for s in text_snapshots]
+
+        # Text at window start (for initial PhoBERT encoding)
+        snap_idx = bisect.bisect_right(snapshot_frames, start_frame) - 1
+        text_at_start = text_snapshots[snap_idx]["text"] if snap_idx >= 0 else ""
+
+        # Text snapshots within the window (for potential mid-window updates)
+        window_snapshots = []
+        for s in text_snapshots:
+            if start_frame < s["frame"] <= end_frame:
+                window_snapshots.append({
+                    "relative_frame": s["frame"] - start_frame,
+                    "text": s["text"],
+                })
+
+        return {
+            "audio_waveform": audio_waveform.squeeze(0),  # (num_samples,)
+            "vap_labels": vap_labels,        # (window_frames,)
+            "va_matrix": va_matrix,          # (2, window_frames)
+            "text": text_at_start,           # str
+            "text_snapshots": window_snapshots,
+            "file_id": entry["file_id"],
+            "window_start_frame": start_frame,
         }
-        
-        return features, label, metadata
-    
-    def _load_precut(self, segment: Dict) -> np.ndarray:
-        """Load pre-cut audio segment"""
-        audio_path = segment["audio_segment"]
-        audio, _ = librosa.load(audio_path, sr=self.sample_rate)
-        return audio
-    
-    def _load_onthefly(self, segment: Dict) -> np.ndarray:
-        """Load and cut audio on-the-fly"""
-        audio_file = segment["audio_file"]
-        audio_path = Path(self.audio_dir) / audio_file
-        
-        start = segment["start"]
-        end = segment["end"]
-        duration = end - start
-        
-        audio, _ = librosa.load(
-            str(audio_path),
-            sr=self.sample_rate,
-            offset=start,
-            duration=duration
-        )
-        
-        return audio
-    
-    def get_class_weights(self) -> torch.Tensor:
-        """Calculate class weights for imbalanced data"""
-        counts = [0, 0, 0]
-        
-        for seg in self.segments:
-            label_str = seg.get("label", "YIELD").upper()
-            label_id = self.LABEL_TO_ID.get(label_str, 0)
-            counts[label_id] += 1
-        
-        total = sum(counts)
-        weights = [total / (3 * c) if c > 0 else 1.0 for c in counts]
-        
-        return torch.FloatTensor(weights)
-
-
-def create_dataloader(
-    data_path: str,
-    audio_processor = None,
-    batch_size: int = 32,
-    shuffle: bool = True,
-    num_workers: int = 4,
-    use_precut: bool = True,
-    audio_dir: Optional[str] = None
-) -> DataLoader:
-    """
-    Create DataLoader for training/evaluation.
-    
-    Usage:
-        from src.data.audio_processor import AudioProcessor
-        from src.data.dataset import create_dataloader
-        
-        processor = AudioProcessor()
-        train_loader = create_dataloader(
-            "data/final/train.json",
-            audio_processor=processor,
-            batch_size=32
-        )
-        
-        for features, labels, metadata in train_loader:
-            # features: (B, 42, T)
-            # labels: (B,)
-            ...
-    """
-    dataset = TurnTakingDataset(
-        data_path=data_path,
-        audio_processor=audio_processor,
-        use_precut=use_precut,
-        audio_dir=audio_dir
-    )
-    
-    # Custom collate to handle metadata
-    def collate_fn(batch):
-        features = torch.stack([b[0] for b in batch])
-        labels = torch.LongTensor([b[1] for b in batch])
-        metadata = [b[2] for b in batch]
-        return features, labels, metadata
-    
-    return DataLoader(
-        dataset,
-        batch_size=batch_size,
-        shuffle=shuffle,
-        num_workers=num_workers,
-        collate_fn=collate_fn,
-        pin_memory=True
-    )
