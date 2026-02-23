@@ -1,148 +1,320 @@
 """
-Gated Multimodal Unit (GMU) for fusing acoustic and linguistic features.
-Learns to dynamically weight each modality based on context.
+Fusion modules for MM-VAP-VI.
+
+Three fusion strategies for combining acoustic and linguistic modalities:
+- CrossAttentionFusion: Bidirectional cross-attention (recommended)
+- GMUFusion: Gated Multimodal Unit (lightweight)
+- BottleneckFusion: Perceiver-style bottleneck (efficient for long sequences)
+
+All modules share the same interface:
+    Input:  acoustic (B, T, dim), linguistic (B, dim)
+    Output: fused (B, T, dim)
 """
 
 import torch
 import torch.nn as nn
-from typing import Tuple, Optional
+from typing import Optional
 
 
-class GatedMultimodalUnit(nn.Module):
+class CrossAttentionFusion(nn.Module):
     """
-    GMU Fusion Layer.
-    
-    h = z ⊙ tanh(W_a · h_a) + (1-z) ⊙ tanh(W_t · h_t)
-    z = σ(W_z · [h_a; h_t])
-    
-    Where:
-        h_a: Acoustic features
-        h_t: Linguistic/Text features  
-        z: Learned gate (0=text, 1=audio)
+    Bidirectional cross-attention fusion.
+
+    Audio attends to text (audio queries, text keys/values) and
+    text attends to audio (text queries, audio keys/values).
+    Results are combined with residual connections.
+
+    Input:
+        acoustic: (B, T, dim)  — temporal acoustic features
+        linguistic: (B, dim)   — static linguistic features (broadcast to T)
+
+    Output:
+        fused: (B, T, dim)
     """
-    
+
     def __init__(
         self,
-        acoustic_dim: int = 64,
-        linguistic_dim: int = 64,
-        hidden_dim: int = 128,
-        output_dim: int = 64
-    ):
-        super().__init__()
-        
-        self.acoustic_dim = acoustic_dim
-        self.linguistic_dim = linguistic_dim
-        
-        # Modality transformations
-        self.acoustic_transform = nn.Linear(acoustic_dim, hidden_dim)
-        self.linguistic_transform = nn.Linear(linguistic_dim, hidden_dim)
-        
-        # Gate computation
-        self.gate = nn.Sequential(
-            nn.Linear(acoustic_dim + linguistic_dim, hidden_dim),
-            nn.ReLU(),
-            nn.Linear(hidden_dim, hidden_dim),
-            nn.Sigmoid()
-        )
-        
-        # Output projection
-        self.output_proj = nn.Linear(hidden_dim, output_dim)
-        
-    def forward(
-        self,
-        h_acoustic: torch.Tensor,
-        h_linguistic: torch.Tensor,
-        return_gate: bool = False
-    ) -> Tuple[torch.Tensor, Optional[torch.Tensor]]:
-        """
-        Fuse acoustic and linguistic representations.
-        
-        Args:
-            h_acoustic: (B, T, acoustic_dim) or (B, acoustic_dim)
-            h_linguistic: (B, linguistic_dim) - Usually pooled from BERT
-            return_gate: If True, also return gate values for visualization
-            
-        Returns:
-            Fused representation (B, T, output_dim) or (B, output_dim)
-            Optional gate values for analysis
-        """
-        # Handle different input shapes
-        has_time = len(h_acoustic.shape) == 3
-        
-        if has_time:
-            B, T, _ = h_acoustic.shape
-            # Expand linguistic to match time dimension
-            h_linguistic = h_linguistic.unsqueeze(1).expand(-1, T, -1)
-        
-        # Compute gate
-        concat = torch.cat([h_acoustic, h_linguistic], dim=-1)
-        z = self.gate(concat)  # (B, [T,] hidden_dim)
-        
-        # Transform modalities
-        h_a_transformed = torch.tanh(self.acoustic_transform(h_acoustic))
-        h_t_transformed = torch.tanh(self.linguistic_transform(h_linguistic))
-        
-        # Gated fusion
-        fused = z * h_a_transformed + (1 - z) * h_t_transformed
-        
-        # Project to output
-        output = self.output_proj(fused)
-        
-        if return_gate:
-            gate_value = z.mean(dim=-1)  # Average gate across hidden dim
-            return output, gate_value
-        return output, None
-
-
-class AttentionFusion(nn.Module):
-    """
-    Alternative fusion using cross-attention.
-    Query from acoustic, Key/Value from linguistic.
-    """
-    
-    def __init__(
-        self,
-        acoustic_dim: int = 64,
-        linguistic_dim: int = 64,
-        hidden_dim: int = 128,
+        dim: int = 256,
         num_heads: int = 4,
-        output_dim: int = 64
+        dropout: float = 0.1,
     ):
         super().__init__()
-        
-        self.attention = nn.MultiheadAttention(
-            embed_dim=hidden_dim,
+        self.dim = dim
+
+        # Audio → Text attention: audio queries attend to text keys/values
+        self.audio_to_text = nn.MultiheadAttention(
+            embed_dim=dim,
             num_heads=num_heads,
-            batch_first=True
+            dropout=dropout,
+            batch_first=True,
         )
-        
-        self.acoustic_proj = nn.Linear(acoustic_dim, hidden_dim)
-        self.linguistic_proj = nn.Linear(linguistic_dim, hidden_dim)
-        self.output_proj = nn.Linear(hidden_dim, output_dim)
-        
+
+        # Text → Audio attention: text queries attend to audio keys/values
+        self.text_to_audio = nn.MultiheadAttention(
+            embed_dim=dim,
+            num_heads=num_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+
+        # Layer norms
+        self.norm_a2t = nn.LayerNorm(dim)
+        self.norm_t2a = nn.LayerNorm(dim)
+
+        # Gating: learn how much to mix cross-attention with original
+        self.gate = nn.Sequential(
+            nn.Linear(dim * 2, dim),
+            nn.Sigmoid(),
+        )
+
+        self.dropout = nn.Dropout(dropout)
+
     def forward(
         self,
-        h_acoustic: torch.Tensor,
-        h_linguistic: torch.Tensor
+        acoustic: torch.Tensor,
+        linguistic: torch.Tensor,
+        causal_mask: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """
         Args:
-            h_acoustic: (B, T, acoustic_dim)
-            h_linguistic: (B, linguistic_dim)
+            acoustic: (B, T, dim) temporal acoustic features.
+            linguistic: (B, dim) static linguistic features.
+            causal_mask: (T, T) optional causal attention mask.
+
+        Returns:
+            fused: (B, T, dim) fused representation.
         """
-        B, T, _ = h_acoustic.shape
-        
-        # Project
-        q = self.acoustic_proj(h_acoustic)  # (B, T, hidden)
-        
-        # Expand linguistic for K, V
-        h_ling_expanded = h_linguistic.unsqueeze(1)  # (B, 1, ling_dim)
-        k = v = self.linguistic_proj(h_ling_expanded)  # (B, 1, hidden)
-        
-        # Cross attention
-        attn_out, _ = self.attention(q, k, v)  # (B, T, hidden)
-        
-        # Combine with original acoustic
-        combined = attn_out + q
-        
-        return self.output_proj(combined)
+        B, T, D = acoustic.shape
+
+        # Broadcast linguistic to time dimension: (B, dim) -> (B, T, dim)
+        ling_expanded = linguistic.unsqueeze(1).expand(B, T, D)
+
+        # Audio-to-text cross attention
+        # Audio queries attend to linguistic keys/values
+        a2t_out, _ = self.audio_to_text(
+            query=acoustic,
+            key=ling_expanded,
+            value=ling_expanded,
+        )
+        a2t_out = self.norm_a2t(acoustic + self.dropout(a2t_out))
+
+        # Text-to-audio cross attention
+        # Linguistic queries attend to audio keys/values (with causal mask)
+        t2a_out, _ = self.text_to_audio(
+            query=ling_expanded,
+            key=acoustic,
+            value=acoustic,
+            attn_mask=causal_mask,
+        )
+        t2a_out = self.norm_t2a(ling_expanded + self.dropout(t2a_out))
+
+        # Gated combination
+        gate_input = torch.cat([a2t_out, t2a_out], dim=-1)  # (B, T, 2*dim)
+        gate_weight = self.gate(gate_input)  # (B, T, dim) values in [0, 1]
+
+        fused = gate_weight * a2t_out + (1 - gate_weight) * t2a_out
+
+        return fused
+
+
+class GMUFusion(nn.Module):
+    """
+    Gated Multimodal Unit (GMU) fusion.
+
+    Lightweight fusion via a learned gate:
+        z = sigmoid(W_z · [h_a; h_l] + b_z)
+        h_fused = z * tanh(W_a · h_a) + (1-z) * tanh(W_l · h_l)
+
+    ~260K params for dim=256.
+
+    Input:
+        acoustic: (B, T, dim)
+        linguistic: (B, dim)
+
+    Output:
+        fused: (B, T, dim)
+    """
+
+    def __init__(
+        self,
+        dim: int = 256,
+        dropout: float = 0.1,
+        **kwargs,
+    ):
+        super().__init__()
+        self.dim = dim
+
+        # Transform each modality
+        self.W_a = nn.Linear(dim, dim)
+        self.W_l = nn.Linear(dim, dim)
+
+        # Gate: decides mixing ratio
+        self.W_z = nn.Linear(dim * 2, dim)
+
+        self.norm = nn.LayerNorm(dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        acoustic: torch.Tensor,
+        linguistic: torch.Tensor,
+        causal_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Args:
+            acoustic: (B, T, dim)
+            linguistic: (B, dim)
+            causal_mask: Unused, kept for interface compatibility.
+
+        Returns:
+            fused: (B, T, dim)
+        """
+        B, T, D = acoustic.shape
+
+        # Broadcast linguistic: (B, dim) -> (B, T, dim)
+        ling_expanded = linguistic.unsqueeze(1).expand(B, T, D)
+
+        # Transform
+        h_a = torch.tanh(self.W_a(acoustic))
+        h_l = torch.tanh(self.W_l(ling_expanded))
+
+        # Gate
+        z = torch.sigmoid(self.W_z(torch.cat([acoustic, ling_expanded], dim=-1)))
+
+        # Fuse
+        fused = z * h_a + (1 - z) * h_l
+        fused = self.norm(fused + acoustic)  # residual from acoustic
+        fused = self.dropout(fused)
+
+        return fused
+
+
+class BottleneckFusion(nn.Module):
+    """
+    Perceiver-style bottleneck fusion.
+
+    Uses a small set of learnable latent tokens to mediate between modalities.
+    More efficient than full cross-attention for long sequences.
+
+    Pipeline:
+        1. Latent tokens cross-attend to [acoustic; linguistic] (compress)
+        2. Acoustic cross-attends to latent tokens (decompress)
+
+    ~800K params for dim=256, num_latents=16.
+
+    Input:
+        acoustic: (B, T, dim)
+        linguistic: (B, dim)
+
+    Output:
+        fused: (B, T, dim)
+    """
+
+    def __init__(
+        self,
+        dim: int = 256,
+        num_heads: int = 4,
+        num_latents: int = 16,
+        dropout: float = 0.1,
+        **kwargs,
+    ):
+        super().__init__()
+        self.dim = dim
+        self.num_latents = num_latents
+
+        # Learnable latent tokens
+        self.latents = nn.Parameter(torch.randn(num_latents, dim) * 0.02)
+
+        # Compress: latents attend to input
+        self.compress_attn = nn.MultiheadAttention(
+            embed_dim=dim,
+            num_heads=num_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.compress_norm = nn.LayerNorm(dim)
+        self.compress_ffn = nn.Sequential(
+            nn.Linear(dim, dim * 2),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(dim * 2, dim),
+            nn.Dropout(dropout),
+        )
+        self.compress_ffn_norm = nn.LayerNorm(dim)
+
+        # Decompress: acoustic attends to latents
+        self.decompress_attn = nn.MultiheadAttention(
+            embed_dim=dim,
+            num_heads=num_heads,
+            dropout=dropout,
+            batch_first=True,
+        )
+        self.decompress_norm = nn.LayerNorm(dim)
+
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(
+        self,
+        acoustic: torch.Tensor,
+        linguistic: torch.Tensor,
+        causal_mask: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """
+        Args:
+            acoustic: (B, T, dim)
+            linguistic: (B, dim)
+            causal_mask: Unused, kept for interface compatibility.
+
+        Returns:
+            fused: (B, T, dim)
+        """
+        B, T, D = acoustic.shape
+
+        # Broadcast linguistic: (B, dim) -> (B, 1, dim)
+        ling_expanded = linguistic.unsqueeze(1)
+
+        # Concat input: [acoustic; linguistic] -> (B, T+1, dim)
+        combined = torch.cat([acoustic, ling_expanded], dim=1)
+
+        # Expand latents for batch: (num_latents, dim) -> (B, num_latents, dim)
+        latents = self.latents.unsqueeze(0).expand(B, -1, -1)
+
+        # Compress: latents cross-attend to combined input
+        compressed, _ = self.compress_attn(
+            query=latents,
+            key=combined,
+            value=combined,
+        )
+        compressed = self.compress_norm(latents + self.dropout(compressed))
+        compressed = self.compress_ffn_norm(compressed + self.compress_ffn(compressed))
+
+        # Decompress: acoustic cross-attends to compressed latents
+        decompressed, _ = self.decompress_attn(
+            query=acoustic,
+            key=compressed,
+            value=compressed,
+        )
+        fused = self.decompress_norm(acoustic + self.dropout(decompressed))
+
+        return fused
+
+
+def build_fusion(fusion_type: str, **kwargs) -> nn.Module:
+    """
+    Factory function to build fusion module by type.
+
+    Args:
+        fusion_type: "cross_attention", "gmu", or "bottleneck"
+        **kwargs: Arguments passed to the fusion constructor.
+
+    Returns:
+        Fusion module instance.
+    """
+    fusion_map = {
+        "cross_attention": CrossAttentionFusion,
+        "gmu": GMUFusion,
+        "bottleneck": BottleneckFusion,
+    }
+    if fusion_type not in fusion_map:
+        raise ValueError(f"Unknown fusion type: {fusion_type}. Choose from {list(fusion_map.keys())}")
+    return fusion_map[fusion_type](**kwargs)
