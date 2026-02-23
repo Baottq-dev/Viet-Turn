@@ -1,5 +1,15 @@
-# Model architectures
-from .acoustic_branch import CausalDilatedTCN
-from .linguistic_branch import PhoBERTEncoder
-from .fusion import GatedMultimodalUnit
-from .viet_turn_edge import VietTurnEdge
+from .model import MMVAPModel
+from .acoustic_encoder import AcousticEncoder
+from .linguistic_encoder import LinguisticEncoder
+from .fusion import build_fusion
+from .transformer import CausalTransformer
+from .projection_head import VAPProjectionHead
+
+__all__ = [
+    "MMVAPModel",
+    "AcousticEncoder",
+    "LinguisticEncoder",
+    "build_fusion",
+    "CausalTransformer",
+    "VAPProjectionHead",
+]
