@@ -1,3 +1,4 @@
-# Data processing modules
-from .audio_processor import AudioProcessor
-from .dataset import TurnTakingDataset, create_dataloader
+from .dataset import VAPDataset
+from .collate import vap_collate_fn
+
+__all__ = ["VAPDataset", "vap_collate_fn"]
