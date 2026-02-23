@@ -1,3 +1,5 @@
-# Training modules
-from .trainer import Trainer
-from .losses import FocalLoss
+from .trainer import VAPTrainer
+from .losses import VAPLoss
+from .augmentation import VAPAugmenter
+
+__all__ = ["VAPTrainer", "VAPLoss", "VAPAugmenter"]
