@@ -1,0 +1,163 @@
+# MM-VAP-VI Configuration
+# Multimodal Voice Activity Projection for Vietnamese
+
+# ─── Data ───────────────────────────────────────────────
+data:
+  sample_rate: 16000
+  frame_hz: 50             # 20ms per frame
+  window_sec: 20.0         # Sliding window duration
+  stride_sec: 5.0          # Sliding window stride
+  lookahead_sec: 2.0       # VAP lookahead (100 frames)
+  num_speakers: 2
+  vap_bins_ms: [200, 600, 1200, 2000]  # Bin boundaries
+  num_classes: 256         # 2^(2 speakers × 4 bins)
+
+  # Paths (override via CLI or per-experiment)
+  audio_dir: "data/audio"
+  rttm_dir: "data/rttm"
+  va_matrix_dir: "data/va_matrices"
+  vap_label_dir: "data/vap_labels"
+  transcript_dir: "data/transcripts"
+  text_frames_dir: "data/text_frames"
+  manifest_dir: "data"
+
+# ─── Acoustic Encoder ──────────────────────────────────
+acoustic_encoder:
+  type: "wav2vec2"  # "wav2vec2" or "wavlm"
+  pretrained: "nguyenvulebinh/wav2vec2-base-vi"
+  hidden_size: 768
+  output_dim: 256
+  freeze_layers: 8         # Freeze first N transformer layers (of 12)
+  gradient_checkpointing: true
+
+# ─── Linguistic Encoder ────────────────────────────────
+linguistic_encoder:
+  phobert:
+    pretrained: "vinai/phobert-base-v2"
+    hidden_size: 768
+    output_dim: 256
+    max_length: 256
+    freeze_embeddings: true
+    freeze_layers: 8       # Freeze first N layers
+
+  hutu_detector:
+    enabled: true
+    embedding_dim: 64
+    output_dim: 256
+    position_decay_alpha: 0.1  # Exponential decay for position weighting
+
+  combined_dim: 256  # After concatenation + projection
+
+# ─── Cross-Attention Fusion ────────────────────────────
+fusion:
+  type: "cross_attention"
+  num_heads: 4
+  dim: 256
+  dropout: 0.1
+
+# ─── Causal Transformer ───────────────────────────────
+transformer:
+  num_layers: 4
+  num_heads: 8
+  dim: 256
+  ffn_dim: 1024
+  dropout: 0.1
+  use_alibi: true          # ALiBi positional encoding
+  gradient_checkpointing: true
+
+# ─── VAP Projection Head ──────────────────────────────
+projection_head:
+  hidden_dim: 256
+  num_classes: 256
+  activation: "gelu"
+
+# ─── Training ─────────────────────────────────────────
+training:
+  # Stage 1: Audio-only
+  stage1:
+    epochs: 10
+    freeze: ["linguistic_encoder", "fusion"]
+    lr:
+      acoustic_encoder: 1.0e-4
+      transformer: 1.0e-4
+      projection_head: 1.0e-4
+
+  # Stage 2: Multimodal
+  stage2:
+    epochs: 20
+    freeze: []
+    unfreeze_phobert_layers: 2  # Unfreeze last N layers
+    lr:
+      acoustic_encoder: 5.0e-5
+      linguistic_encoder: 2.0e-5
+      fusion: 1.0e-4
+      transformer: 5.0e-5
+      projection_head: 5.0e-5
+
+  # Stage 3: Full fine-tune
+  stage3:
+    epochs: 20
+    freeze: []
+    lr:
+      acoustic_encoder: 1.0e-5
+      linguistic_encoder: 5.0e-6
+      fusion: 5.0e-5
+      transformer: 5.0e-5
+      projection_head: 5.0e-5
+
+  # Common training settings
+  batch_size: 4
+  accumulate_grad_batches: 4  # Effective batch size = 16
+  weight_decay: 1.0e-2
+  warmup_ratio: 0.05
+  gradient_clip: 1.0
+  mixed_precision: true    # fp16
+
+  # Loss
+  loss:
+    type: "cross_entropy"  # "cross_entropy" or "focal"
+    focal_gamma: 2.0
+    label_smoothing: 0.1          # Smooth hard labels (0.0 = no smoothing)
+    transition_weight: 2.0        # Upweight transition frames
+    transition_window_ms: 500     # ±500ms around speaker changes
+
+  # Early stopping
+  early_stopping:
+    patience: 5
+    metric: "val_loss"
+    mode: "min"
+
+  # Checkpointing
+  checkpoint:
+    save_every_epoch: 5
+    save_best: true
+    keep_last: 3
+
+# ─── Evaluation ───────────────────────────────────────
+evaluation:
+  shift_threshold: 0.5
+  bc_threshold: 0.3
+  min_silence_ms: 300
+  latency_thresholds_ms: [100, 200, 300, 500, 1000]
+  bootstrap_n: 1000
+  bootstrap_ci: 0.95
+
+# ─── Augmentation ─────────────────────────────────────
+augmentation:
+  modality_dropout:
+    enabled: true
+    text_dropout_prob: 0.3
+  time_masking:
+    enabled: true
+    max_mask_frames: 25    # 500ms at 50fps
+  noise_injection:
+    enabled: true
+    snr_range: [10, 30]
+
+# ─── Logging ──────────────────────────────────────────
+logging:
+  wandb:
+    project: "mm-vap-vi"
+    entity: null
+    log_every_steps: 50
+  output_dir: "outputs/mm_vap"
