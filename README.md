@@ -13,6 +13,7 @@ Text (ASR)   --> LinguisticEncoder (PhoBERT + HuTuDetector) --> (B, 256) --/
 ```
 
 **Components:**
+
 - **AcousticEncoder:** Wav2Vec2-base-vi / WavLM, frozen CNN + fine-tune upper layers
 - **LinguisticEncoder:** PhoBERT-base-v2 [CLS] + VAPHuTuDetector (Vietnamese discourse marker detection with n-gram matching, position-sensitive classification, exponential decay weighting)
 - **Fusion:** Cross-Attention (default), GMU, or Bottleneck (Perceiver-style)
@@ -43,7 +44,27 @@ Viet-Turn/
 ### 1. Install
 
 ```bash
+
+# 1. Xoa env cu
+conda deactivate
+conda remove -n vietturn --all -y
+
+# 2. Tao env moi
+conda create -n vietturn python=3.11 -y
+conda activate vietturn
+
+# 3. Cai PyTorch 2.5.1 + CUDA 12.4 TRUOC
+pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+
+# 4. Cai dependencies
 pip install -r requirements.txt
+
+# 5. Cai them nodejs cho yt-dlp
+conda install -c conda-forge nodejs -y
+
+# 6. Login HuggingFace (can cho pyannote)
+huggingface-cli login
+
 ```
 
 ### 2. Data Pipeline
@@ -83,26 +104,27 @@ python train.py --config configs/config.yaml --resume outputs/mm_vap/checkpoint_
 
 ### 4. Training Stages
 
-| Stage | What | Freeze | Epochs |
-|-------|------|--------|--------|
-| 1 | Audio-only | Text + Fusion | 10 |
-| 2 | Multimodal | Unfreeze PhoBERT top-2 + Fusion | 20 |
-| 3 | Full fine-tune | All (except CNN) | 20 |
+| Stage | What           | Freeze                          | Epochs |
+| ----- | -------------- | ------------------------------- | ------ |
+| 1     | Audio-only     | Text + Fusion                   | 10     |
+| 2     | Multimodal     | Unfreeze PhoBERT top-2 + Fusion | 20     |
+| 3     | Full fine-tune | All (except CNN)                | 20     |
 
 ## Evaluation
 
 4-tier evaluation framework:
 
-| Tier | Metrics |
-|------|---------|
+| Tier        | Metrics                                              |
+| ----------- | ---------------------------------------------------- |
 | Frame-level | CE, Perplexity, Top-1/5 Acc, Weighted F1, ECE, Brier |
-| Event-level | Shift/Hold BA, BC F1, Predict-Shift AUC |
-| Latency | EOT latency, FPR, MST-FPR curve |
-| Application | VAQI score |
+| Event-level | Shift/Hold BA, BC F1, Predict-Shift AUC              |
+| Latency     | EOT latency, FPR, MST-FPR curve                      |
+| Application | VAQI score                                           |
 
 ## Key Innovation: VAPHuTuDetector
 
 Vietnamese discourse marker detector grounded in SFP-Prosody Complementarity (Wakefield 2016):
+
 - 5 categories: yield, hold, backchannel, turn_request, none
 - N-gram matching (unigrams + bigrams + trigrams)
 - Position-sensitive classification (e.g., "khong" = negation mid-sentence, question tag at end)
@@ -110,15 +132,15 @@ Vietnamese discourse marker detector grounded in SFP-Prosody Complementarity (Wa
 
 ## Technology Stack
 
-| Component | Choice |
-|-----------|--------|
-| Acoustic | Wav2Vec2-base-vi / WavLM |
-| Linguistic | PhoBERT-base-v2 + HuTuDetector |
-| ASR | faster-whisper (large-v3) |
-| Diarization | pyannote/speaker-diarization-3.1 |
-| Fusion | Cross-Attention / GMU / Bottleneck |
-| Positional | ALiBi (no learned positions) |
-| Loss | CE + Transition Weighting + Focal |
+| Component   | Choice                             |
+| ----------- | ---------------------------------- |
+| Acoustic    | Wav2Vec2-base-vi / WavLM           |
+| Linguistic  | PhoBERT-base-v2 + HuTuDetector     |
+| ASR         | faster-whisper (large-v3)          |
+| Diarization | pyannote/speaker-diarization-3.1   |
+| Fusion      | Cross-Attention / GMU / Bottleneck |
+| Positional  | ALiBi (no learned positions)       |
+| Loss        | CE + Transition Weighting + Focal  |
 
 ## License
 
