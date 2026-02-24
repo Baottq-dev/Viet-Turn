@@ -71,6 +71,7 @@ venv.bak/
 .ipynb_checkpoints
 
 # Data files
+data/
 datasets/
 # *.wav
 # *.mp3
@@ -89,6 +90,7 @@ outputs/
 logs/
 *.log
 tensorboard/
+wandb/
 
 # OS generated files
 .DS_Store
