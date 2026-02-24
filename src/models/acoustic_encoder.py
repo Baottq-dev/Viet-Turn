@@ -31,9 +31,9 @@ class AcousticEncoder(nn.Module):
         self.encoder_type = encoder_type
 
         if encoder_type == "wavlm":
-            self.encoder = WavLMModel.from_pretrained(pretrained)
+            self.encoder = WavLMModel.from_pretrained(pretrained, use_safetensors=True)
         else:
-            self.encoder = Wav2Vec2Model.from_pretrained(pretrained)
+            self.encoder = Wav2Vec2Model.from_pretrained(pretrained, use_safetensors=True)
 
         self.hidden_size = self.encoder.config.hidden_size  # 768
 
@@ -47,7 +47,9 @@ class AcousticEncoder(nn.Module):
                     param.requires_grad = False
 
         if gradient_checkpointing:
-            self.encoder.gradient_checkpointing_enable()
+            self.encoder.gradient_checkpointing_enable(
+                gradient_checkpointing_kwargs={"use_reentrant": False}
+            )
 
         # Projection to output dim
         self.proj = nn.Sequential(

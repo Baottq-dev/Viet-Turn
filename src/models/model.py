@@ -117,12 +117,16 @@ class MMVAPModel(nn.Module):
         )
 
         f_cfg = cfg["fusion"]
+        fusion_kwargs = {
+            "dim": f_cfg["dim"],
+            "num_heads": f_cfg.get("num_heads", 4),
+            "dropout": f_cfg.get("dropout", 0.1),
+        }
+        if "num_latents" in f_cfg:
+            fusion_kwargs["num_latents"] = f_cfg["num_latents"]
         fusion = build_fusion(
             fusion_type=f_cfg.get("type", "cross_attention"),
-            dim=f_cfg["dim"],
-            num_heads=f_cfg.get("num_heads", 4),
-            dropout=f_cfg.get("dropout", 0.1),
-            num_latents=f_cfg.get("num_latents", 16),
+            **fusion_kwargs,
         )
 
         t_cfg = cfg["transformer"]

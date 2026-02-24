@@ -351,7 +351,7 @@ class LinguisticEncoder(nn.Module):
 
         # PhoBERT
         self.tokenizer = AutoTokenizer.from_pretrained(pretrained)
-        self.phobert = AutoModel.from_pretrained(pretrained)
+        self.phobert = AutoModel.from_pretrained(pretrained, use_safetensors=True)
         self.phobert_hidden = self.phobert.config.hidden_size  # 768
 
         # Freeze embeddings
