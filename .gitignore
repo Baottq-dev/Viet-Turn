@@ -72,7 +72,6 @@ venv.bak/
 
 # Data files
 data/
-datasets/
 # *.wav
 # *.mp3
 # *.mp4
