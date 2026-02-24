@@ -160,7 +160,8 @@ def compute_mst_fpr_curve(
         fpr_values.append(float(fpr))
 
     # AUC of MST-FPR curve (lower is better)
-    auc = float(np.trapz(fpr_values, [ms / 1000 for ms in mst_range_ms]))
+    _trapz = getattr(np, "trapezoid", getattr(np, "trapz", None))
+    auc = float(_trapz(fpr_values, [ms / 1000 for ms in mst_range_ms]))
 
     return {
         "mst_values_ms": mst_range_ms,

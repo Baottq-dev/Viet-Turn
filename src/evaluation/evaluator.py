@@ -86,6 +86,15 @@ class MMVAPEvaluator:
                 use_text=use_text,
             )
 
+            # Frame alignment (Wav2Vec2 CNN stride may produce fewer frames)
+            T_logits = logits.shape[1]
+            T_labels = labels.shape[1]
+            T_va = va_matrix.shape[1]
+            T_min = min(T_logits, T_labels, T_va)
+            logits = logits[:, :T_min, :]
+            labels = labels[:, :T_min]
+            va_matrix = va_matrix[:, :T_min, :]
+
             all_logits.append(logits.cpu())
             all_labels.append(labels)
             all_va_matrices.append(va_matrix)
@@ -275,9 +284,17 @@ class MMVAPEvaluator:
                     use_text=use_text,
                 )
 
+            # Frame alignment
+            labels = batch["vap_labels"]
+            va_matrix = batch["va_matrix"]
+            T_min = min(logits.shape[1], labels.shape[1], va_matrix.shape[1])
+            logits = logits[:, :T_min, :]
+            labels = labels[:, :T_min]
+            va_matrix = va_matrix[:, :T_min, :]
+
             all_logits.append(logits.cpu())
-            all_labels.append(batch["vap_labels"])
-            all_va_matrices.append(batch["va_matrix"])
+            all_labels.append(labels)
+            all_va_matrices.append(va_matrix)
 
         all_logits = torch.cat(all_logits, dim=0)
         all_labels = torch.cat(all_labels, dim=0)
