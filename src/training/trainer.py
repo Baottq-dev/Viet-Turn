@@ -181,6 +181,13 @@ class VAPTrainer:
                     audio_attention_mask=audio_mask,
                     use_text=use_text,
                 )
+                # Align frames: wav2vec2 CNN may produce fewer frames than labels
+                T_logits = logits.shape[1]
+                T_labels = labels.shape[1]
+                if T_logits < T_labels:
+                    labels = labels[:, :T_logits]
+                elif T_logits > T_labels:
+                    logits = logits[:, :T_labels, :]
                 loss = self.criterion(logits, labels)
                 loss = loss / self.accumulate_steps
 
@@ -261,6 +268,13 @@ class VAPTrainer:
                 audio_attention_mask=audio_mask,
                 use_text=use_text,
             )
+            # Align frames
+            T_logits = logits.shape[1]
+            T_labels = labels.shape[1]
+            if T_logits < T_labels:
+                labels = labels[:, :T_logits]
+            elif T_logits > T_labels:
+                logits = logits[:, :T_labels, :]
             loss = self.criterion(logits, labels)
 
             total_loss += loss.item()
@@ -359,6 +373,10 @@ class VAPTrainer:
         train_cfg = self.config["training"]
         stage_cfg = train_cfg[f"stage{stage}"]
         num_epochs = stage_cfg["epochs"]
+
+        if num_epochs == 0:
+            print(f"\n  Stage {stage}: skipped (epochs=0)")
+            return
 
         print(f"\n{'='*60}")
         print(f"Stage {stage}: epochs {start_epoch}-{num_epochs}")
