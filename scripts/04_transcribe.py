@@ -94,6 +94,13 @@ def main():
     results = {}
     for i, audio_path in enumerate(audio_files):
         file_id = audio_path.stem
+        output_path = output_dir / f"{file_id}.json"
+
+        # Skip if already transcribed (resume support)
+        if output_path.exists():
+            print(f"\n[{i+1}/{len(audio_files)}] {file_id} — already done, skipping")
+            continue
+
         print(f"\n[{i+1}/{len(audio_files)}] Transcribing {file_id}...")
 
         try:
@@ -104,7 +111,6 @@ def main():
             )
 
             # Save transcript
-            output_path = output_dir / f"{file_id}.json"
             transcript_data = {
                 "file_id": file_id,
                 "num_words": len(word_segments),
