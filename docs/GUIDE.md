@@ -39,8 +39,9 @@
 | Evaluation: Tier 3 Latency + VAQI + EoT Levenshtein | `src/evaluation/latency_metrics.py` | Done |
 | Evaluation: Statistical Tests (permutation test) | `src/evaluation/statistical.py` | Done |
 | Evaluation: Vietnamese Analysis (marker/dialect) | `src/evaluation/vietnamese_analysis.py` | Done |
+| Evaluation: Orchestrator (4-tier) | `src/evaluation/evaluator.py` | Done |
 | Streaming Inference (KV cache) | `src/inference/streaming.py` | Done |
-| Data Pipeline Scripts (01-07) | `scripts/` | Done (7 scripts) |
+| Data Pipeline Scripts (00-07) | `scripts/` | Done (9 scripts) |
 | Unit Tests | `tests/` | Done (4 test files) |
 | Training Entry Point | `train.py` | Done |
 
@@ -81,8 +82,10 @@ python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # hoac: venv\Scripts\activate  # Windows
 
-# Cai dependencies
-pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu118
+# Cai dependencies (THU TU QUAN TRONG!)
+# Buoc 1: PyTorch 2.5.1 voi CUDA 12.4 (tuong thich pyannote 3.x)
+pip install torch==2.5.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu124
+# Buoc 2: Cai cac package con lai
 pip install -r requirements.txt
 
 # Config environment variables
@@ -119,6 +122,7 @@ python -c "from faster_whisper import WhisperModel; print('faster-whisper OK')"
 ```
 data/
 ├── audio/              # Raw audio files (.wav, 16kHz, mono)
+├── audio_split/        # Split segments (~10 min each, .wav)
 ├── rttm/               # Speaker diarization output
 ├── va_matrices/        # Binary voice activity matrices (.pt)
 ├── vap_labels/         # 256-class VAP labels (.pt)
@@ -136,14 +140,61 @@ Dat file audio vao `data/audio/`. Yeu cau:
 - Do dai: 20-60 phut moi file (conversation/podcast)
 - Noi dung: hoi thoai 2 nguoi (Vietnamese)
 
+**Download tu YouTube** (da co san 10 link trong `scripts/urls.txt`):
+
 ```bash
-# Neu audio chua dung format, convert:
+# === Buoc 0: Download audio tu YouTube ===
+# Download tat ca video, tu dong convert WAV 16kHz mono (~10-30 phut tuy mang)
+python scripts/00_download_audio.py
+
+# Hoac voi options:
+python scripts/00_download_audio.py --urls scripts/urls.txt --output data/audio
+python scripts/00_download_audio.py --max-duration 3600   # bo qua video > 1h
+python scripts/00_download_audio.py --dry-run              # xem truoc, khong download
+python scripts/00_download_audio.py --verify               # kiem tra file da download
+```
+
+File `scripts/urls.txt` chua 10 video tu nhieu kenh/the loai:
+- **Bar Stories** (Dustin On The Go) - entertainment talkshow
+- **Have A Sip** (Vietcetera) - lifestyle/culture
+- **Vietnam Innovators** (Vietcetera) - business/tech
+- **Khong Cay Khong Ve** (Vietcetera) - food/culinary
+- **Coi Mo** (Vietcetera) - social topics
+
+**Cat audio dai thanh ~10 phut** (podcast 30-90 phut → segments ~10 phut, dung Silero VAD):
+
+```bash
+# === Buoc 0b: Split audio dai thanh segments ngan ===
+# Dung Silero VAD (neural network) detect pause giua loi noi, cat tai pause dai nhat
+python scripts/00b_split_audio.py --input data/audio --output data/audio_split
+
+# Xem truoc split plan, khong ghi file:
+python scripts/00b_split_audio.py --input data/audio --output data/audio_split --dry-run
+
+# Custom: target 15 phut/segment, chi cat tai pause >= 0.5s
+python scripts/00b_split_audio.py --input data/audio --output data/audio_split --segment-min 15 --min-pause 0.5
+```
+
+Sau khi split, dung `data/audio_split` lam input cho cac buoc tiep theo thay vi `data/audio`.
+
+Neu co audio san (khong download tu YouTube):
+
+```bash
+# Convert sang dung format:
 ffmpeg -i input.mp3 -ar 16000 -ac 1 data/audio/output.wav
 ```
 
-### 3.3 Chay pipeline tu dong (7 buoc)
+### 3.3 Chay pipeline tu dong (8 buoc)
 
 ```bash
+# === Buoc 0b: Split Audio (neu file > 15 phut) ===
+# Silero VAD detect speech pauses, cat tai pause dai nhat gan moc ~10 phut
+python scripts/00b_split_audio.py \
+    --input data/audio \
+    --output data/audio_split \
+    --segment-min 10
+# Luu y: Cac buoc sau dung data/audio_split thay vi data/audio
+
 # === Buoc 1: Speaker Diarization ===
 # Phan biet nguoi noi trong audio (can GPU, ~2-5 phut/file, ~2GB VRAM)
 python scripts/01_diarize.py \
@@ -200,13 +251,20 @@ python scripts/07_validate_data.py \
 # run_pipeline.sh - Chay toan bo pipeline
 set -e
 
-AUDIO_DIR="data/audio"
+AUDIO_RAW="data/audio"
+AUDIO_DIR="data/audio_split"
 RTTM_DIR="data/rttm"
 VA_DIR="data/va_matrices"
 LABEL_DIR="data/vap_labels"
 TRANSCRIPT_DIR="data/transcripts"
 TEXT_DIR="data/text_frames"
 OUTPUT_DIR="data"
+
+echo "=== Step 0: Download Audio ==="
+python scripts/00_download_audio.py --output $AUDIO_RAW
+
+echo "=== Step 0b: Split Long Audio ==="
+python scripts/00b_split_audio.py --input $AUDIO_RAW --output $AUDIO_DIR --segment-min 10
 
 echo "=== Step 1: Diarization ==="
 python scripts/01_diarize.py --input $AUDIO_DIR --output $RTTM_DIR --num-speakers 2
@@ -610,3 +668,23 @@ Neu pyannote cho ket qua sai:
 - Thu chi dinh so nguoi noi: `--num-speakers 2`
 - Kiem tra audio quality: mono, 16kHz, khong co nhieu nen qua lon
 - Neu file dai >1h, xem xet cat thanh nhieu file ngan hon
+
+### Tieng Viet bi loi ky tu tren Windows (PowerShell/CMD)
+
+Khi chay script, tieng Viet hien thi sai kieu `Thành Lc` thay vi `Thành Lộc`:
+
+```powershell
+# Fix 1: Set code page UTF-8 truoc khi chay (chay 1 lan moi khi mo terminal)
+chcp 65001
+
+# Fix 2: Hoac set bien moi truong (vinh vien)
+[System.Environment]::SetEnvironmentVariable("PYTHONIOENCODING", "utf-8", "User")
+
+# Fix 3: Hoac them vao PowerShell profile (tu dong moi lan mo terminal)
+# Mo file profile:
+notepad $PROFILE
+# Them dong nay vao cuoi file:
+# $OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+```
+
+Luu y: Loi nay chi anh huong **hien thi tren terminal**, khong anh huong file output (file ten la video ID, vd: `PSGO2CFhBM8.wav`).
