@@ -36,7 +36,7 @@ def classify_events(
     probs: torch.Tensor,
     va_matrix: torch.Tensor,
     shift_threshold: float = 0.5,
-    bc_max_frames: int = 50,  # 1s at 50fps
+    bc_max_frames: int = 25,  # 500ms at 50fps (was 50/1s, too loose)
     ignore_index: int = -1,
     labels: torch.Tensor = None,
 ) -> Dict[str, np.ndarray]:
@@ -44,18 +44,20 @@ def classify_events(
     Classify frames into turn-taking events based on VA ground truth.
 
     A frame is labeled as:
-    - SHIFT: current speaker goes silent, other speaker starts (long)
-    - HOLD: current speaker pauses but resumes
-    - BACKCHANNEL: other speaker briefly active
+    - SHIFT (1): current speaker goes silent, other speaker starts (long)
+    - HOLD (0): current speaker pauses but resumes, or silence
+    - BACKCHANNEL (2): other speaker briefly active while main speaker continues
 
-    We determine ground truth events from VA matrix transitions,
-    then evaluate model predictions against these.
+    Ground truth events come from VA matrix transitions.
+    Backchannel requires: s1-only region ≤ bc_max_frames AND s0 was active
+    in the surrounding context (within 10 frames), indicating s1 spoke
+    briefly while s0 held the floor.
 
     Args:
         probs: (T, 256) softmax probabilities.
         va_matrix: (2, T) binary ground-truth voice activity.
         shift_threshold: Threshold for p_now to classify as active.
-        bc_max_frames: Maximum backchannel duration in frames.
+        bc_max_frames: Maximum backchannel duration in frames (default 25 = 500ms).
         labels: (T,) VAP labels (optional, for masking invalid frames).
 
     Returns:
@@ -67,39 +69,37 @@ def classify_events(
     p0, p1 = probs_to_p_now(probs)
 
     # Ground truth events from VA matrix
-    # Detect speaker transitions
-    s0_active = va_matrix[0].bool()
-    s1_active = va_matrix[1].bool()
-
-    # For simplicity: classify each frame based on the pattern
-    # Assume speaker 0 is "current" initially, detect when control shifts
     gt_events = np.zeros(T, dtype=np.int64)  # 0=hold, 1=shift, 2=backchannel
 
-    # Detect shift regions: s0 was active, then s1 becomes active for >bc_max_frames
     s0_np = va_matrix[0].cpu().numpy()
     s1_np = va_matrix[1].cpu().numpy()
 
-    # Vectorized approach: find s1-only regions and classify by duration
-    s1_only = (s0_np == 0) & (s1_np == 1)  # frames where only s1 is active
+    # Find s1-only regions (s1 active, s0 silent)
+    s1_only = (s0_np == 0) & (s1_np == 1)
 
-    # Find run lengths of s1-only regions
-    # Compute run IDs: each contiguous block of s1_only gets a unique ID
     diff = np.diff(s1_only.astype(int), prepend=0)
     starts = np.where(diff == 1)[0]
     ends_diff = np.where(diff == -1)[0]
 
-    # Handle case where last region extends to end
     if len(starts) > len(ends_diff):
         ends_diff = np.append(ends_diff, T)
+
+    context_window = 10  # frames to check s0 activity around BC region
 
     for s, e in zip(starts, ends_diff):
         duration = e - s
         if duration <= bc_max_frames:
-            gt_events[s:e] = 2  # backchannel
+            # Check if s0 was active in surrounding context (true backchannel)
+            ctx_start = max(0, s - context_window)
+            ctx_end = min(T, e + context_window)
+            ctx_slice = s0_np[ctx_start:ctx_end]
+            s0_context = float(ctx_slice.mean()) if len(ctx_slice) > 0 else 0.0
+            if s0_context >= 0.3:  # s0 held the floor
+                gt_events[s:e] = 2  # backchannel
+            else:
+                gt_events[s:e] = 1  # short shift (s0 wasn't really active)
         else:
             gt_events[s:e] = 1  # shift
-
-    # s0 active frames stay 0 (hold), silence frames stay 0 (hold)
 
     # Predicted events from model probabilities
     pred_events = np.zeros(T, dtype=np.int64)
@@ -109,8 +109,8 @@ def classify_events(
     for t in range(T):
         if p1_np[t] > shift_threshold and p0_np[t] < (1 - shift_threshold):
             pred_events[t] = 1  # predict shift
-        elif p1_np[t] > 0.3 and p0_np[t] > 0.3:
-            pred_events[t] = 2  # predict backchannel (both active briefly)
+        elif p1_np[t] > 0.4 and p0_np[t] > 0.4:
+            pred_events[t] = 2  # predict backchannel (both speakers confident)
         else:
             pred_events[t] = 0  # hold
 
