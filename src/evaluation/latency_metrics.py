@@ -77,29 +77,39 @@ def compute_fpr_at_thresholds(
     frame_hz: int = 50,
 ) -> Dict[str, float]:
     """
-    Compute False Positive Rate at various latency thresholds.
+    Compute False Positive Rate at various Minimum Silence Thresholds (MST).
 
-    FPR = false positives / (false positives + true negatives)
+    Only trigger shift prediction if P(shift) > 0.5 for at least MST
+    consecutive frames. Higher MST = fewer false positives but higher latency.
 
     Args:
         p_shift: (T,) predicted P(shift).
         gt_shift: (T,) binary ground truth (1=shift region).
-        thresholds_ms: List of time thresholds.
+        thresholds_ms: List of MST values in milliseconds.
         frame_hz: Frame rate.
 
     Returns:
         Dict mapping threshold to FPR.
     """
     results = {}
+    T = len(p_shift)
+    non_shift_mask = gt_shift == 0
 
     for thresh_ms in thresholds_ms:
-        thresh_frames = int(thresh_ms / (1000 / frame_hz))
+        mst_frames = max(1, int(thresh_ms / (1000 / frame_hz)))
 
-        # At this threshold: predict shift if p_shift > 0.5 within thresh_frames
-        pred = (p_shift > 0.5).astype(float)
+        # Apply MST: predict shift only after MST consecutive frames > 0.5
+        pred = np.zeros(T)
+        consecutive = 0
+        for t in range(T):
+            if p_shift[t] > 0.5:
+                consecutive += 1
+                if consecutive >= mst_frames:
+                    pred[t] = 1.0
+            else:
+                consecutive = 0
 
         # FPR on non-shift frames
-        non_shift_mask = gt_shift == 0
         if non_shift_mask.sum() > 0:
             fp = pred[non_shift_mask].sum()
             fpr = fp / non_shift_mask.sum()
