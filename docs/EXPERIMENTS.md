@@ -1,47 +1,38 @@
-# MM-VAP-VI: Experiment Plan for Paper Submission
+# MM-VAP-VI: Kế hoạch thí nghiệm cho paper
 
-> Chi tiet cac thi nghiem can thuc hien de co du ket qua cho paper.
+> Chi tiết các thí nghiệm cần thực hiện để có đủ kết quả cho paper.
 > Target venues: INTERSPEECH, ACL Findings, SIGdial Workshop.
 
 ---
 
 ## 1. Baselines
 
-Muc dich: So sanh MM-VAP-VI voi cac phuong phap khac de chung minh tinh uu viet.
+**Mục đích:** So sánh MM-VAP-VI với các phương pháp khác để chứng minh tính ưu việt.
 
 ### 1.1 Random Baseline
 
-**Mo ta:** Du doan ngau nhien tu 256 classes.
-
-**Cach chay:**
+Dự đoán ngẫu nhiên từ 256 classes.
 
 ```python
-# Trong evaluate script, them:
 import numpy as np
 
 def random_baseline(labels, num_classes=256, seed=42):
-    """Random prediction baseline."""
     rng = np.random.RandomState(seed)
     valid_mask = labels >= 0
     valid_labels = labels[valid_mask]
     random_preds = rng.randint(0, num_classes, size=len(valid_labels))
     acc = (random_preds == valid_labels).mean()
-    return {"acc": acc}  # Expected ~0.4%
+    return {"acc": acc}  # Kỳ vọng ~0.4%
 ```
-
-**Ket qua ky vong:** ~0.4% accuracy (1/256).
 
 ### 1.2 Majority Class Baseline
 
-**Mo ta:** Luon du doan class pho bien nhat (thuong la silence class 0).
-
-**Cach chay:**
+Luôn dự đoán class phổ biến nhất (thường là silence class 0).
 
 ```python
 from collections import Counter
 
 def majority_baseline(train_labels, test_labels):
-    """Always predict most common class."""
     valid_train = train_labels[train_labels >= 0]
     majority_class = Counter(valid_train.tolist()).most_common(1)[0][0]
     valid_test = test_labels[test_labels >= 0]
@@ -49,38 +40,27 @@ def majority_baseline(train_labels, test_labels):
     return {"acc": acc, "majority_class": majority_class}
 ```
 
-**Ket qua ky vong:** ~30-50% (phu thuoc vao ty le silence trong data).
+**Kết quả kỳ vọng:** ~30-50% (phụ thuộc vào tỷ lệ silence trong data).
 
-### 1.3 Audio-only VAP (Stage 1 model)
+### 1.3 Audio-only VAP (Stage 1)
 
-**Mo ta:** Chi dung acoustic encoder (Wav2Vec2) + Transformer, khong co text.
-Day chinh la ket qua Stage 1 cua training.
-
-**Cach chay:**
+Chỉ dùng acoustic encoder (Wav2Vec2) + Transformer, không có text.
+Đây chính là kết quả Stage 1 của training.
 
 ```bash
-# Su dung model sau Stage 1 (da co tu training)
-# Checkpoint: outputs/mm_vap/checkpoint_s1_e10.pt
-
 python evaluate.py \
     --checkpoint outputs/mm_vap/checkpoint_s1_e10.pt \
     --test-manifest data/vap_manifest_test.json \
     --use-text false
 ```
 
-**Ket qua hien tai:** val_acc = 71.2% (tu Stage 1 Epoch 10).
+**Kết quả hiện tại:** val_acc = 71.2% (Stage 1, Epoch 10).
 
 ### 1.4 Text-only Baseline
 
-**Mo ta:** Chi dung PhoBERT text features, khong co audio. Baseline nay cho thay
-text co huu ich den muc nao khi dung doc lap.
-
-**Cach implement:**
+Chỉ dùng PhoBERT text features, không có audio. Cho thấy text có hữu ích đến mức nào khi dùng độc lập.
 
 ```python
-# Tao 1 model variant chi co linguistic encoder + transformer + projection
-# Khong can acoustic encoder
-
 class TextOnlyVAP(nn.Module):
     def __init__(self, linguistic_encoder, transformer, projection_head):
         super().__init__()
@@ -89,33 +69,21 @@ class TextOnlyVAP(nn.Module):
         self.projection_head = projection_head
 
     def forward(self, texts, num_frames):
-        # Linguistic encoding -> expand to all frames
         ling = self.linguistic_encoder(texts)  # (B, dim)
-        ling_expanded = ling.unsqueeze(1).expand(-1, num_frames, -1)  # (B, T, dim)
+        ling_expanded = ling.unsqueeze(1).expand(-1, num_frames, -1)
         contextualized, _ = self.transformer(ling_expanded)
         logits = self.projection_head(contextualized)
         return logits
 ```
 
-**Ket qua ky vong:** ~40-55% accuracy (text giup du doan pattern nhung khong co
-timing chinh xac tu audio).
+**Kết quả kỳ vọng:** ~40-55% accuracy.
 
 ### 1.5 Original VAP (Ekstedt & Skantze, 2022)
 
-**Mo ta:** Baseline audio-only VAP goc (tieng Anh/Thuy Dien), fine-tune tren data
-tieng Viet. Chung minh rang architecture cua chung ta (multimodal + HuTu)
-vuot troi so voi VAP goc.
-
-**Cach implement:**
+Baseline audio-only VAP gốc (tiếng Anh/Thụy Điển), fine-tune trên data tiếng Việt.
+Chứng minh rằng architecture multimodal + HuTu vượt trội so với VAP gốc.
 
 ```python
-# Dung CPC/HuBERT encoder thay vi Wav2Vec2-Vi
-# Khong co text branch, khong co HuTu detector
-# Architecture: CPC -> Transformer -> Projection
-
-# Option 1: Dung pretrained VAP model, fine-tune tren Vietnamese data
-# Option 2: Train tu dau voi HuBERT-base + Transformer
-
 class OriginalVAP(nn.Module):
     """Simplified VAP following Ekstedt & Skantze (2022)."""
     def __init__(self):
@@ -125,49 +93,47 @@ class OriginalVAP(nn.Module):
         self.proj = VAPProjectionHead(input_dim=256, num_classes=256)
 ```
 
-**Y nghia:** Cho thay Wav2Vec2-Vi tot hon HuBERT-English cho tieng Viet,
-va multimodal tot hon audio-only.
+**Ý nghĩa:** Cho thấy Wav2Vec2-Vi tốt hơn HuBERT-English cho tiếng Việt, và multimodal tốt hơn audio-only.
 
-### 1.6 Bang tong hop Baselines
+### 1.6 Bảng tổng hợp Baselines
 
-| Model | Audio | Text | HuTu | Expected Acc | Purpose |
-|-------|-------|------|------|-------------|---------|
+| Model | Audio | Text | HuTu | Acc kỳ vọng | Mục đích |
+|-------|-------|------|------|-------------|----------|
 | Random | - | - | - | ~0.4% | Lower bound |
 | Majority | - | - | - | ~35% | Naive baseline |
-| Audio-only (Stage 1) | Wav2Vec2-Vi | - | - | ~71% | Audio contribution |
-| Text-only | - | PhoBERT-v2 | Yes | ~45% | Text contribution |
+| Audio-only (Stage 1) | Wav2Vec2-Vi | - | - | ~71% | Đóng góp audio |
+| Text-only | - | PhoBERT-v2 | Yes | ~45% | Đóng góp text |
 | Original VAP | HuBERT-EN | - | - | ~60% | Cross-lingual |
-| **MM-VAP-VI (Full)** | **Wav2Vec2-Vi** | **PhoBERT-v2** | **Yes** | **~75%** | **Proposed** |
+| **MM-VAP-VI (Full)** | **Wav2Vec2-Vi** | **PhoBERT-v2** | **Yes** | **~75%** | **Đề xuất** |
 
-> **Luu y:** VAQI su dung thang diem 0-100 (vi du: 71.0, khong phai 0.71).
+> **Lưu ý:** VAQI sử dụng thang điểm 0-100 (ví dụ: 71.0, không phải 0.71).
 
 ---
 
 ## 2. Ablation Studies
 
-Muc dich: Phan tich dong gop cua tung thanh phan trong model.
+**Mục đích:** Phân tích đóng góp của từng thành phần trong model.
 
-### 2.1 Ablation Matrix
+### 2.1 Ma trận Ablation
 
-| Exp | Acoustic | PhoBERT | HuTu | Fusion | Description |
-|-----|----------|---------|------|--------|-------------|
+| Exp | Acoustic | PhoBERT | HuTu | Fusion | Mô tả |
+|-----|----------|---------|------|--------|-------|
 | A1 | Wav2Vec2-Vi | - | - | - | Audio-only (= Stage 1) |
-| A2 | Wav2Vec2-Vi | PhoBERT-v2 | - | Cross-Attn | No HuTu |
+| A2 | Wav2Vec2-Vi | PhoBERT-v2 | - | Cross-Attn | Không có HuTu |
 | A3 | Wav2Vec2-Vi | PhoBERT-v2 | Yes | Cross-Attn | **Full model** |
-| A4 | Wav2Vec2-Vi | PhoBERT-v2 | Yes | GMU | Fusion comparison |
-| A5 | Wav2Vec2-Vi | PhoBERT-v2 | Yes | Bottleneck | Fusion comparison |
-| A6 | WavLM-base | PhoBERT-v2 | Yes | Cross-Attn | Encoder comparison |
+| A4 | Wav2Vec2-Vi | PhoBERT-v2 | Yes | GMU | So sánh fusion |
+| A5 | Wav2Vec2-Vi | PhoBERT-v2 | Yes | Bottleneck | So sánh fusion |
+| A6 | WavLM-base | PhoBERT-v2 | Yes | Cross-Attn | So sánh encoder |
 
-### 2.2 Cach chay tung ablation
+### 2.2 Cách chạy từng ablation
 
-#### A2: No HuTu (tat hutu_detector)
-
-Sua `configs/config.yaml`:
+#### A2: Không có HuTu
 
 ```yaml
+# configs/ablation_no_hutu.yaml
 linguistic_encoder:
   hutu_detector:
-    enabled: false     # <-- Tat HuTu
+    enabled: false
 ```
 
 ```bash
@@ -179,7 +145,7 @@ python train.py --config configs/ablation_no_hutu.yaml \
 
 ```yaml
 fusion:
-  type: "gmu"          # <-- Doi tu cross_attention sang gmu
+  type: "gmu"
   dim: 256
   dropout: 0.1
 ```
@@ -196,7 +162,7 @@ fusion:
   type: "bottleneck"
   dim: 256
   num_heads: 4
-  num_latents: 16      # <-- Bottleneck specific
+  num_latents: 16
   dropout: 0.1
 ```
 
@@ -205,29 +171,27 @@ fusion:
 ```yaml
 acoustic_encoder:
   type: "wavlm"
-  pretrained: "microsoft/wavlm-base"   # <-- Doi encoder
+  pretrained: "microsoft/wavlm-base"
 ```
 
-### 2.3 Training Strategy Ablation
+### 2.3 Ablation chiến lược Training
 
-Muc dich: Chung minh 3-stage curriculum tot hon 1-stage/2-stage.
-Reviewer **se hoi** tai sao chon 3-stage ma khong so sanh voi cac chien luoc khac.
+**Mục đích:** Chứng minh 3-stage curriculum tốt hơn 1-stage/2-stage.
+Reviewer **sẽ hỏi** tại sao chọn 3-stage mà không so sánh với các chiến lược khác.
 
-| Exp | Strategy | Description |
-|-----|---------|-------------|
-| T1 | 1-stage | End-to-end, tat ca module unfreeze tu dau, 50 epochs |
-| T2 | 2-stage | Audio-only (15 ep) -> Full (35 ep) |
-| T3 | 3-stage | Audio-only (10 ep) -> Multimodal (20 ep) -> Fine-tune (20 ep) |
+| Exp | Chiến lược | Mô tả |
+|-----|-----------|-------|
+| T1 | 1-stage | End-to-end, tất cả module unfreeze từ đầu, 50 epochs |
+| T2 | 2-stage | Audio-only (15 ep) → Full (35 ep) |
+| T3 | 3-stage | Audio-only (10 ep) → Multimodal (20 ep) → Fine-tune (20 ep) |
 
 #### T1: 1-stage end-to-end
-
-Tao `configs/config_1stage.yaml` (copy tu config.yaml, thay doi `training`):
 
 ```yaml
 training:
   stage1:
     epochs: 50
-    freeze: []       # Khong freeze gi
+    freeze: []
     lr:
       acoustic_encoder: 5.0e-5
       linguistic_encoder: 2.0e-5
@@ -235,9 +199,9 @@ training:
       transformer: 5.0e-5
       projection_head: 5.0e-5
   stage2:
-    epochs: 0        # Skip
+    epochs: 0   # Bỏ qua
   stage3:
-    epochs: 0        # Skip
+    epochs: 0   # Bỏ qua
 ```
 
 ```bash
@@ -266,7 +230,7 @@ training:
       transformer: 5.0e-5
       projection_head: 5.0e-5
   stage3:
-    epochs: 0        # Skip
+    epochs: 0   # Bỏ qua
 ```
 
 ```bash
@@ -274,24 +238,22 @@ python train.py --config configs/config_2stage.yaml \
     --output-dir outputs/strategy_2stage
 ```
 
-#### Bang ket qua
+#### Bảng kết quả
 
-| Strategy | Frame Acc (%) | Shift/Hold BA | VAQI | Convergence (epochs) |
-|---------|---------------|---------------|------|---------------------|
+| Chiến lược | Frame Acc (%) | Shift/Hold BA | VAQI | Hội tụ (epochs) |
+|-----------|---------------|---------------|------|-----------------|
 | 1-stage end-to-end | | | | |
-| 2-stage (audio -> full) | | | | |
-| **3-stage (proposed)** | | | | |
+| 2-stage (audio → full) | | | | |
+| **3-stage (đề xuất)** | | | | |
 
-> **Ly do ky vong 3-stage tot hon:**
-> - Stage 1 cho acoustic encoder hoc vung truoc khi bi nhieu boi text gradients
-> - Stage 2 cho fusion hoc tu acoustic features da tot, ko phai tu random
-> - Stage 3 fine-tune toan bo voi LR nho de polish
+> **Lý do kỳ vọng 3-stage tốt hơn:**
+> - Stage 1: acoustic encoder học vững trước khi bị nhiễu bởi text gradients
+> - Stage 2: fusion học từ acoustic features đã tốt, không phải từ random
+> - Stage 3: fine-tune toàn bộ với LR nhỏ để polish
 
-> **Luu y:** Can fix `trainer.py` de skip stage khi `epochs: 0` (xem Section 6.3).
+> **Lưu ý:** `trainer.py` đã hỗ trợ skip stage khi `epochs: 0` (xem Mục 6.3).
 
-### 2.4 Ket qua can bao cao
-
-Moi ablation can bao cao:
+### 2.4 Kết quả cần báo cáo
 
 | Metric | A1 | A2 | A3 | A4 | A5 | A6 |
 |--------|----|----|----|----|----|----|
@@ -302,84 +264,74 @@ Moi ablation can bao cao:
 | EoT Latency (ms) | | | | | | |
 | VAQI | | | | | | |
 | Params (M) | | | | | | |
-| Train time (h) | | | | | | |
+| Thời gian train (h) | | | | | | |
 
-### 2.5 HuTu Detector Deep Dive
+### 2.5 Phân tích chuyên sâu HuTu Detector
 
-Day la contribution chinh cua paper, can phan tich ky:
+Đây là contribution chính của paper, cần phân tích kỹ:
 
 ```python
-# So sanh accuracy tai cac frame co/khong co discourse markers
-
 from src.evaluation.vietnamese_analysis import analyze_marker_impact
 
-# Ket qua ky vong:
-# - Frames co yield markers (a, nhe, nhi): +5-10% accuracy
-# - Frames co hold markers (ma, la, thi): +3-5% accuracy
-# - Frames co backchannel markers (u, o): +8-12% accuracy
+# Kết quả kỳ vọng:
+# - Frames có yield markers (à, nhé, nhỉ): +5-10% accuracy
+# - Frames có hold markers (mà, là, thì): +3-5% accuracy
+# - Frames có backchannel markers (ừ, ờ): +8-12% accuracy
 ```
 
-**Bang can bao cao:**
-
-| Marker Category | Examples | #Occurrences | Acc with HuTu | Acc without HuTu | Delta |
-|----------------|----------|-------------|---------------|-----------------|-------|
-| Yield (SFP) | a, nhe, nhi | ? | ? | ? | ? |
-| Hold (conjunction) | ma, la, thi | ? | ? | ? | ? |
-| Backchannel | u, o, vang | ? | ? | ? | ? |
-| Turn request | nay, oi | ? | ? | ? | ? |
-| No marker | - | ? | ? | ? | ? |
+| Loại Marker | Ví dụ | Số lượng | Acc có HuTu | Acc không HuTu | Delta |
+|-------------|-------|---------|-------------|----------------|-------|
+| Yield (SFP) | à, nhé, nhỉ | ? | ? | ? | ? |
+| Hold (liên từ) | mà, là, thì | ? | ? | ? | ? |
+| Backchannel | ừ, ờ, vâng | ? | ? | ? | ? |
+| Xin lượt | này, ơi | ? | ? | ? | ? |
+| Không có marker | - | ? | ? | ? | ? |
 
 ---
 
 ## 3. Event-Level Metrics (Tier 2)
 
-Code da implement trong `src/evaluation/event_metrics.py`.
+Code đã implement trong `src/evaluation/event_metrics.py`.
 
-### 3.1 Event Types
+### 3.1 Các loại sự kiện
 
-Ba loai su kien turn-taking:
+| Sự kiện | Định nghĩa | Ground Truth Source |
+|---------|-----------|-------------------|
+| **SHIFT** | Speaker A dừng, Speaker B bắt đầu nói | VA matrix: S_A 1→0, S_B 0→1 |
+| **HOLD** | Speaker A dừng (im lặng), rồi tiếp tục nói | VA matrix: S_A 1→0→1, S_B = 0 |
+| **BACKCHANNEL** | Speaker B nói ngắn (≤500ms) trong khi A vẫn giữ sàn | VA matrix: S_B = 1 ngắn (≤25 frames), S_A active trong context ±10 frames |
 
-| Event | Dinh nghia | Ground Truth Source |
-|-------|-----------|-------------------|
-| **SHIFT** | Speaker A dung, Speaker B bat dau noi | VA matrix: S_A 1->0, S_B 0->1 |
-| **HOLD** | Speaker A dung (im lang), roi tiep tuc noi | VA matrix: S_A 1->0->1, S_B = 0 |
-| **BACKCHANNEL** | Speaker B noi ngan (<1s) trong khi A van noi | VA matrix: S_B = 1 ngan, S_A = 1 |
-
-### 3.2 Cach tinh
+### 3.2 Cách tính
 
 ```python
 from src.evaluation.event_metrics import classify_events, compute_event_metrics
 
-# classify_events() tinh ca GT events (tu VA matrix) va predicted events
-# (tu model probs) trong cung 1 loi goi:
 pred_probs = torch.softmax(logits, dim=-1)  # (T, 256)
 
 event_data = classify_events(
-    probs=pred_probs,               # Bat buoc, khong duoc None
-    va_matrix=va_matrix,            # Ground truth VA matrix
+    probs=pred_probs,
+    va_matrix=va_matrix,
     shift_threshold=0.5,
-    bc_max_frames=50,               # Max 1s for backchannel
-    labels=vap_labels,              # Mask invalid frames
+    bc_max_frames=25,       # Tối đa 500ms cho backchannel
+    labels=vap_labels,
 )
 
-# Ket qua la dict, can unpack:
 gt_events = event_data["gt_events"]       # (N,) int: 0=hold, 1=shift, 2=bc
 pred_events = event_data["pred_events"]   # (N,) int
 p_shift = event_data["p_shift"]           # (N,) float: P(shift)
 gt_shift = event_data["gt_shift"]         # (N,) float: binary shift labels
 
-# Tinh metrics
 metrics = compute_event_metrics(gt_events, pred_events, p_shift, gt_shift)
-# -> shift_hold_ba, bc_f1, predict_shift_auc, event_3class_ba
+# → shift_hold_ba, bc_f1, predict_shift_auc, event_3class_ba
 ```
 
-### 3.3 Metrics can bao cao
+### 3.3 Metrics cần báo cáo
 
-| Metric | Mo ta | Target |
-|--------|------|--------|
-| **Shift/Hold BA** | Balanced Accuracy phan biet shift vs hold | > 0.65 |
-| **BC F1** | F1-score phat hien backchannel | > 0.50 |
-| **Predict Shift AUC** | ROC-AUC du doan shift truoc khi xay ra | > 0.70 |
+| Metric | Mô tả | Target |
+|--------|--------|--------|
+| **Shift/Hold BA** | Balanced Accuracy phân biệt shift vs hold | > 0.65 |
+| **BC F1** | F1-score phát hiện backchannel | > 0.50 |
+| **Predict Shift AUC** | ROC-AUC dự đoán shift trước khi xảy ra | > 0.70 |
 | **3-class BA** | Balanced Accuracy 3 class (shift/hold/BC) | > 0.55 |
 
 ### 3.4 Confusion Matrix
@@ -392,43 +344,42 @@ GT  SHIFT   [  TP  |  FN  | FN ]
     BC      [  FP  |  FP  | TP ]
 ```
 
-Can bao cao confusion matrix nay cho moi model/ablation.
+Cần báo cáo confusion matrix cho mỗi model/ablation.
 
 ---
 
 ## 4. Latency Metrics (Tier 3)
 
-Code da implement trong `src/evaluation/latency_metrics.py`.
+Code đã implement trong `src/evaluation/latency_metrics.py`.
 
 ### 4.1 End-of-Turn (EoT) Latency
 
-Do thoi gian model can de nhan ra speaker da ket thuc luot noi.
+Đo thời gian model cần để nhận ra speaker đã kết thúc lượt nói.
 
 ```python
 from src.evaluation.latency_metrics import compute_eot_latency
 
 latency = compute_eot_latency(
-    p_shift=p_shift_probs,          # (T,) xac suat shift
-    gt_shift_regions=gt_shifts,      # [(start, end), ...]
+    p_shift=p_shift_probs,
+    gt_shift_regions=gt_shifts,
     threshold=0.5,
     frame_hz=50,
 )
-# -> eot_latency_mean_ms, eot_latency_median_ms, eot_latency_p95_ms
-#    detection_rate
+# → eot_latency_mean_ms, eot_latency_median_ms, eot_latency_p95_ms, detection_rate
 ```
 
-**Target benchmarks (tu literature):**
+**Benchmarks (từ literature):**
 
-| Metric | Human | Good Model | Acceptable |
-|--------|-------|-----------|-----------|
+| Metric | Con người | Model tốt | Chấp nhận được |
+|--------|-----------|-----------|----------------|
 | Median Latency | ~200ms | < 300ms | < 500ms |
 | P95 Latency | ~500ms | < 800ms | < 1500ms |
 | Detection Rate | 100% | > 90% | > 80% |
 
-### 4.2 False Positive Rate at Latency Thresholds
+### 4.2 False Positive Rate theo ngưỡng Latency
 
-Khi model phat hien shift nhanh, no co the bi false positive (ngat loi).
-Metric nay do trade-off giua speed va accuracy.
+Khi model phát hiện shift nhanh, nó có thể bị false positive (ngắt lời).
+Metric này đo trade-off giữa tốc độ và độ chính xác.
 
 ```python
 from src.evaluation.latency_metrics import compute_fpr_at_thresholds
@@ -439,22 +390,19 @@ fpr = compute_fpr_at_thresholds(
     thresholds_ms=[100, 200, 300, 500, 1000],
     frame_hz=50,
 )
-# -> fpr_at_100ms, fpr_at_200ms, ...
 ```
 
-**Bang can bao cao:**
-
-| Latency Threshold | FPR (Audio-only) | FPR (MM-VAP-VI) | Delta |
-|-------------------|------------------|-----------------|-------|
+| Ngưỡng Latency | FPR (Audio-only) | FPR (MM-VAP-VI) | Delta |
+|-----------------|------------------|-----------------|-------|
 | 100ms | ? | ? | ? |
 | 200ms | ? | ? | ? |
 | 300ms | ? | ? | ? |
 | 500ms | ? | ? | ? |
 | 1000ms | ? | ? | ? |
 
-### 4.3 VAQI - Voice Agent Quality Index
+### 4.3 VAQI — Voice Agent Quality Index
 
-Metric tong hop danh gia chat luong VAP cho ung dung voice agent thuc te.
+Metric tổng hợp đánh giá chất lượng VAP cho ứng dụng voice agent thực tế.
 
 ```python
 from src.evaluation.latency_metrics import compute_vaqi
@@ -467,22 +415,22 @@ vaqi = compute_vaqi(
     frame_hz=50,
     max_latency_ms=2000.0,
 )
-# -> vaqi (0-100), vaqi_interruption_rate, vaqi_missed_response_rate,
-#    vaqi_latency_score, vaqi_median_latency_ms
+# → vaqi (0-100), vaqi_interruption_rate, vaqi_missed_response_rate,
+#   vaqi_latency_score, vaqi_median_latency_ms
 ```
 
-**VAQI components:**
+**Các thành phần VAQI:**
 
-| Component | Mo ta | Weight | Target |
-|-----------|------|--------|--------|
-| Interruption Rate (I) | Ty le model ngat loi (du doan shift khi hold) | 0.4 | < 10% |
-| Missed Response (M) | Ty le model bo lo shift | 0.4 | < 15% |
-| Latency Score (L) | log-scaled median latency, normalized to [0,1] | 0.2 | < 0.3 |
-| **VAQI Total** | **100 × (1 - [0.4×I + 0.4×M + 0.2×L])** | **0-100** | **> 65** |
+| Thành phần | Mô tả | Trọng số | Target |
+|------------|--------|----------|--------|
+| Interruption Rate (I) | Tỷ lệ model ngắt lời (dự đoán shift khi hold) | 0.4 | < 10% |
+| Missed Response (M) | Tỷ lệ model bỏ lỡ shift | 0.4 | < 15% |
+| Latency Score (L) | Log-scaled median latency, chuẩn hóa về [0,1] | 0.2 | < 0.3 |
+| **VAQI Total** | **100 × (1 − [0.4×I + 0.4×M + 0.2×L])** | **0-100** | **> 65** |
 
 ### 4.4 EoT Levenshtein (Sequence-based)
 
-Danh gia do chinh xac cua chuoi EoT predictions so voi ground truth.
+Đánh giá độ chính xác của chuỗi EoT predictions so với ground truth.
 
 ```python
 from src.evaluation.latency_metrics import compute_eot_levenshtein
@@ -490,110 +438,98 @@ from src.evaluation.latency_metrics import compute_eot_levenshtein
 lev = compute_eot_levenshtein(
     gt_eot_frames=gt_eot_list,
     pred_eot_frames=pred_eot_list,
-    tolerance_frames=25,          # 500ms tolerance
+    tolerance_frames=25,    # 500ms tolerance
     frame_hz=50,
 )
-# -> eot_precision, eot_recall, eot_f1, eot_mean_position_error_ms
+# → eot_precision, eot_recall, eot_f1, eot_mean_position_error_ms
 ```
 
 ---
 
-## 5. Statistical Tests
+## 5. Kiểm định thống kê
 
 ### 5.1 Paired Permutation Test
 
-Muc dich: Chung minh su khac biet giua 2 models la **co y nghia thong ke**,
-khong phai do ngau nhien.
+**Mục đích:** Chứng minh sự khác biệt giữa 2 models là **có ý nghĩa thống kê**, không phải do ngẫu nhiên.
 
 ```python
 from src.evaluation.statistical import permutation_test
 
-# scores_a, scores_b: per-conversation metric scores
-# Vi du: shift_hold_ba cua moi conversation
-
 result = permutation_test(
-    scores_a=audio_only_scores,     # Model A (baseline)
-    scores_b=mmvap_scores,          # Model B (proposed)
+    scores_a=audio_only_scores,   # Model A (baseline)
+    scores_b=mmvap_scores,        # Model B (đề xuất)
     n_permutations=10000,
     seed=42,
 )
-# -> observed_diff, p_value, significant_at_05, significant_at_01
+# → observed_diff, p_value, significant_at_05, significant_at_01
 ```
 
-**Luu y quan trong:**
-- Can **it nhat 20-30 conversations** de permutation test co power tot
-- Hien tai chi co 5 test files -> **khong du** cho statistical significance
-- Day la ly do chinh can tang data len 30-50+ conversations
+> **Lưu ý quan trọng:**
+> - Cần **ít nhất 20-30 conversations** để permutation test có power tốt
+> - Hiện tại chỉ có 5 test files → **không đủ** cho statistical significance
+> - Đây là lý do chính cần tăng data lên 30-50+ conversations
 
 ### 5.2 Bootstrap Confidence Intervals
 
-Tinh khoang tin cay 95% cho moi metric bang bootstrap.
+Tính khoảng tin cậy 95% cho mỗi metric bằng bootstrap.
 
 ```python
-# MMVAPEvaluator da co san evaluate_with_bootstrap()
-
 evaluator = MMVAPEvaluator(model, test_loader, device="cuda")
 results = evaluator.evaluate_with_bootstrap(
     n_bootstrap=1000,
     ci=0.95,
     use_text=True,
 )
-# Moi metric se co: mean, ci_lower, ci_upper
+# Mỗi metric sẽ có: mean, ci_lower, ci_upper
 ```
 
-**Cach bao cao trong paper:**
+**Cách báo cáo trong paper:**
 
 ```
-Frame Accuracy: 75.2% (95% CI: 73.1-77.3)
-Shift/Hold BA:  0.68 (95% CI: 0.64-0.72)
-BC F1:          0.54 (95% CI: 0.48-0.60)
-EoT Latency:   285ms (95% CI: 240-330)
-VAQI:           71.0/100 (95% CI: 66.0-76.0)
+Frame Accuracy: 75.2% (95% CI: 73.1–77.3)
+Shift/Hold BA:  0.68  (95% CI: 0.64–0.72)
+BC F1:          0.54  (95% CI: 0.48–0.60)
+EoT Latency:   285ms (95% CI: 240–330)
+VAQI:           71.0  (95% CI: 66.0–76.0)
 ```
 
-### 5.3 Per-comparison Statistical Tests
+### 5.3 Kiểm định cho từng cặp so sánh
 
-Moi cap so sanh trong ablation can test rieng:
+| So sánh | Giả thuyết | Test |
+|---------|-----------|------|
+| Full vs Audio-only | Text cải thiện accuracy | Permutation, p < 0.05 |
+| Full vs Không HuTu | HuTu cải thiện accuracy | Permutation, p < 0.05 |
+| Full vs Original VAP | Adaptation tiếng Việt hiệu quả | Permutation, p < 0.05 |
+| Cross-Attn vs GMU | Loại fusion có ảnh hưởng | Permutation, p < 0.05 |
 
-| Comparison | Hypothesis | Test |
-|-----------|-----------|------|
-| Full vs Audio-only | Text improves accuracy | Permutation, p < 0.05 |
-| Full vs No-HuTu | HuTu improves accuracy | Permutation, p < 0.05 |
-| Full vs Original VAP | Vietnamese adaptation helps | Permutation, p < 0.05 |
-| Cross-Attn vs GMU | Fusion type matters | Permutation, p < 0.05 |
-
-### 5.4 Effect Size
-
-Ngoai p-value, bao cao Cohen's d:
+### 5.4 Effect Size (Cohen's d)
 
 ```python
 def cohens_d(scores_a, scores_b):
-    """Compute Cohen's d effect size."""
     import numpy as np
     na, nb = len(scores_a), len(scores_b)
     var_a, var_b = np.var(scores_a, ddof=1), np.var(scores_b, ddof=1)
     pooled_std = np.sqrt(((na-1)*var_a + (nb-1)*var_b) / (na+nb-2))
     return (np.mean(scores_b) - np.mean(scores_a)) / pooled_std
 
-# Interpretation:
-# |d| < 0.2: negligible
-# 0.2 <= |d| < 0.5: small
-# 0.5 <= |d| < 0.8: medium
-# |d| >= 0.8: large
+# |d| < 0.2  : không đáng kể
+# 0.2 ≤ |d| < 0.5 : nhỏ
+# 0.5 ≤ |d| < 0.8 : trung bình
+# |d| ≥ 0.8  : lớn
 ```
 
 ---
 
 ## 6. Evaluation Script
 
-> **Status:** `evaluate.py` **chua implement**. Hien tai evaluation logic nam trong
-> `src/evaluation/evaluator.py` (class `MMVAPEvaluator`). Can tao file `evaluate.py`
-> o root project truoc khi chay cac lenh ben duoi.
+> **Trạng thái:** `evaluate.py` **chưa implement**. Hiện tại evaluation logic nằm trong
+> `src/evaluation/evaluator.py` (class `MMVAPEvaluator`). Cần tạo file `evaluate.py`
+> ở root project trước khi chạy các lệnh bên dưới.
 
-### 6.1 Cach chay (sau khi tao evaluate.py)
+### 6.1 Cách chạy
 
 ```bash
-# Full evaluation voi bootstrap CI
+# Full evaluation với bootstrap CI
 python evaluate.py \
     --checkpoint outputs/mm_vap/best_model.pt \
     --test-manifest data/vap_manifest_test.json \
@@ -601,7 +537,7 @@ python evaluate.py \
     --bootstrap 1000 \
     --output outputs/eval_results.json
 
-# So sanh 2 models (permutation test)
+# So sánh 2 models (permutation test)
 python evaluate.py \
     --checkpoint-a outputs/mm_vap/best_model.pt \
     --checkpoint-b outputs/ablation_no_hutu/best_model.pt \
@@ -610,7 +546,7 @@ python evaluate.py \
     --output outputs/comparison_results.json
 ```
 
-### 6.2 Output format
+### 6.2 Định dạng output
 
 ```json
 {
@@ -639,10 +575,9 @@ python evaluate.py \
 }
 ```
 
-### 6.3 Can fix: trainer.py skip stage khi epochs = 0
+### 6.3 trainer.py skip stage khi epochs = 0
 
-Hien tai `VAPTrainer.train_stage()` se crash khi `epochs: 0` vi `OneCycleLR`
-yeu cau `total_steps > 0`. Can them guard vao `train_stage()`:
+`VAPTrainer.train_stage()` đã có guard để skip stage khi `epochs: 0`:
 
 ```python
 def train_stage(self, stage: int, start_epoch: int = 1):
@@ -651,16 +586,16 @@ def train_stage(self, stage: int, start_epoch: int = 1):
     if num_epochs == 0:
         print(f"\n  Stage {stage}: skipped (epochs=0)")
         return
-    # ... rest of method
+    # ... phần còn lại
 ```
 
-Chua fix -> **khong the chay 1-stage hoac 2-stage configs**.
+**Đã fix** → có thể chạy config 1-stage và 2-stage bình thường.
 
 ---
 
-## 7. Paper Table Templates
+## 7. Mẫu bảng cho paper
 
-### Table 1: Main Results
+### Table 1: Kết quả chính
 
 ```
 +------------------+----------+-------+----------+-------+--------+------+
@@ -685,116 +620,114 @@ Chua fix -> **khong the chay 1-stage hoac 2-stage configs**.
 |                  | Acc (%)  | Hold BA  |       |
 +------------------+----------+----------+-------+
 | Full model       | 75.2     |  0.68    | 71.0  |
-|  - HuTu          | 73.5     |  0.65    | 66.0  |
-|  - PhoBERT       | 71.2     |  0.63    | 61.0  |
-|  - Cross-Attn    | 74.1     |  0.66    | 68.0  |
-|   (use GMU)      |          |          |       |
-|  - Wav2Vec2-Vi   | 68.3     |  0.59    | 55.0  |
-|   (use WavLM-EN) |          |          |       |
+|  − HuTu          | 73.5     |  0.65    | 66.0  |
+|  − PhoBERT       | 71.2     |  0.63    | 61.0  |
+|  − Cross-Attn    | 74.1     |  0.66    | 68.0  |
+|   (dùng GMU)     |          |          |       |
+|  − Wav2Vec2-Vi   | 68.3     |  0.59    | 55.0  |
+|   (dùng WavLM-EN)|          |          |       |
 +------------------+----------+----------+-------+
 ```
 
-### Table 3: HuTu Marker Impact
+### Table 3: Tác động HuTu Marker
 
 ```
 +------------------+--------+---------+-----------+-------+
-| Marker Category  | Count  | Acc     | Acc       | Delta |
-|                  |        | w/ HuTu | w/o HuTu  |       |
+| Loại Marker      | Số lg  | Acc     | Acc       | Delta |
+|                  |        | có HuTu | không HuTu|       |
 +------------------+--------+---------+-----------+-------+
 | Yield (SFP)      | 1,234  | 82.1%   | 74.3%     | +7.8  |
-| Hold (conj.)     | 2,456  | 78.5%   | 74.1%     | +4.4  |
+| Hold (liên từ)   | 2,456  | 78.5%   | 74.1%     | +4.4  |
 | Backchannel      |   567  | 71.2%   | 59.8%     | +11.4 |
-| Turn request     |   234  | 69.3%   | 63.2%     | +6.1  |
-| No marker        | 15,678 | 74.8%   | 73.9%     | +0.9  |
+| Xin lượt         |   234  | 69.3%   | 63.2%     | +6.1  |
+| Không marker     | 15,678 | 74.8%   | 73.9%     | +0.9  |
 +------------------+--------+---------+-----------+-------+
 ```
 
-### Figure Ideas
+### Ý tưởng hình vẽ
 
-1. **Training curves**: Loss/Acc across 3 stages (da co trong training_history.json)
-2. **Latency CDF**: Cumulative distribution of EoT latency
-3. **FPR-Latency tradeoff**: FPR at different latency thresholds
-4. **Confusion matrix**: 3-class (shift/hold/BC) confusion matrix
-5. **Qualitative examples**: 2-3 conversation excerpts showing predictions
-6. **HuTu bar chart**: Per-marker accuracy improvement
+1. **Training curves** — Loss/Acc qua 3 stages (đã có trong `training_history.json`)
+2. **Latency CDF** — Phân phối tích lũy EoT latency
+3. **FPR-Latency tradeoff** — FPR tại các ngưỡng latency khác nhau
+4. **Confusion matrix** — 3-class (shift/hold/BC)
+5. **Qualitative examples** — 2-3 đoạn hội thoại minh họa predictions
+6. **HuTu bar chart** — Cải thiện accuracy theo từng loại marker
 
 ---
 
-## 8. Data Requirements
+## 8. Yêu cầu dữ liệu
 
-### 8.1 Hien tai
+### 8.1 Hiện trạng
 
-| Metric | Hien tai | Can cho paper |
+| Metric | Hiện tại | Cần cho paper |
 |--------|---------|--------------|
-| Total audio | ~5.5h (10 videos) | 20-50h (40-100 videos) |
+| Tổng audio | ~5.5h (10 videos) | 20-50h (40-100 videos) |
 | Train files | 33 segments | 150+ segments |
 | Val files | 4 segments | 20+ segments |
 | Test files | 5 segments | 30+ segments |
-| Total frames | 1M | 4-10M |
+| Tổng frames | 1M | 4-10M |
 
-### 8.2 Cach tang data
+### 8.2 Cách tăng dữ liệu
 
-1. Tim them YouTube videos (podcast/phong van 2 nguoi tieng Viet):
+1. Tìm thêm YouTube videos (podcast/phỏng vấn 2 người tiếng Việt):
 
 ```bash
-# Them URLs vao scripts/urls.txt
-# Chay lai pipeline
+# Thêm URLs vào scripts/urls.txt, rồi chạy lại pipeline
 python scripts/00_download_audio.py --output data/audio
 python scripts/00b_split_audio.py --input data/audio --output data/audio_split
-# ... (pipeline tu dong)
+# ... (pipeline tự động)
 ```
 
-2. Can dam bao **da dang**:
-   - Bac/Trung/Nam dialect
-   - Nam/nu speakers
-   - Formal/informal conversations
-   - Different topics
+2. Cần đảm bảo **đa dạng**:
+   - Phương ngữ Bắc / Trung / Nam
+   - Giới tính nam / nữ
+   - Hội thoại formal / informal
+   - Đa dạng chủ đề
 
-3. Annotate dialect info cho moi conversation (de dung `analyze_per_dialect`).
+3. Annotate thông tin phương ngữ cho mỗi conversation (để dùng `analyze_per_dialect`).
 
-### 8.3 Data Split Strategy
+### 8.3 Chiến lược chia dữ liệu
 
-Khi tang data, can chu y:
-- Split theo **conversation** (khong phai theo window) de tranh data leakage
-- Giu ty le 80/10/10 (train/val/test)
-- Dam bao moi dialect co mat trong ca 3 splits
+- Split theo **conversation** (không phải theo window) để tránh data leakage
+- Giữ tỷ lệ 80/10/10 (train/val/test)
+- Đảm bảo mỗi phương ngữ có mặt trong cả 3 splits
 
 ---
 
-## 9. Checklist truoc khi nop paper
+## 9. Checklist trước khi nộp paper
 
-### Data
-- [ ] 30+ gio audio (40+ videos)
-- [ ] 3 dialects (Bac/Trung/Nam) co mat
-- [ ] Test set >= 30 conversations
-- [ ] Dialect annotation cho moi file
+### Dữ liệu
+- [ ] 30+ giờ audio (40+ videos)
+- [ ] 3 phương ngữ (Bắc/Trung/Nam) có mặt
+- [ ] Test set ≥ 30 conversations
+- [ ] Annotation phương ngữ cho mỗi file
 
-### Experiments
-- [ ] Full model trained (3 stages)
+### Thí nghiệm
+- [ ] Full model đã train (3 stages)
 - [ ] Random baseline
 - [ ] Majority baseline
 - [ ] Audio-only baseline (Stage 1)
 - [ ] Text-only baseline
-- [ ] Original VAP baseline (optional nhung tot)
-- [ ] No-HuTu ablation
-- [ ] Fusion type ablation (GMU, Bottleneck)
-- [ ] Encoder ablation (WavLM vs Wav2Vec2-Vi)
-- [ ] **Training strategy ablation (1-stage vs 2-stage vs 3-stage)**
+- [ ] Original VAP baseline (tùy chọn nhưng nên có)
+- [ ] Ablation không HuTu
+- [ ] Ablation loại fusion (GMU, Bottleneck)
+- [ ] Ablation encoder (WavLM vs Wav2Vec2-Vi)
+- [ ] **Ablation chiến lược training (1-stage vs 2-stage vs 3-stage)**
 
 ### Metrics
 - [ ] Tier 1: Frame Acc, F1, Perplexity, ECE
 - [ ] Tier 2: Shift/Hold BA, BC F1, Shift AUC
-- [ ] Tier 3: EoT Latency, FPR curves, VAQI
-- [ ] Vietnamese analysis: Per-marker accuracy
-- [ ] Per-dialect breakdown
+- [ ] Tier 3: EoT Latency, đường cong FPR, VAQI
+- [ ] Phân tích tiếng Việt: Accuracy theo từng marker
+- [ ] Phân tích theo phương ngữ
 
-### Statistics
-- [ ] Bootstrap 95% CI cho moi metric
-- [ ] Permutation test (p < 0.05) cho moi comparison
+### Thống kê
+- [ ] Bootstrap 95% CI cho mỗi metric
+- [ ] Permutation test (p < 0.05) cho mỗi cặp so sánh
 - [ ] Cohen's d effect sizes
-- [ ] >= 30 test conversations cho power
+- [ ] ≥ 30 test conversations để đảm bảo power
 
-### Figures
+### Hình vẽ
 - [ ] Training curves (3 stages)
 - [ ] Latency CDF
 - [ ] FPR-Latency tradeoff
@@ -802,9 +735,9 @@ Khi tang data, can chu y:
 - [ ] HuTu marker impact bar chart
 - [ ] Qualitative examples
 
-### Writing
+### Viết paper
 - [ ] Abstract
-- [ ] Introduction + motivation (Vietnamese turn-taking gap)
+- [ ] Introduction + motivation (khoảng trống turn-taking tiếng Việt)
 - [ ] Related work (VAP, Vietnamese NLP, multimodal)
 - [ ] Method (architecture, HuTu, 3-stage training)
 - [ ] Experiments (data, baselines, ablations)
@@ -813,13 +746,13 @@ Khi tang data, can chu y:
 
 ---
 
-## 10. Timeline de xuat
+## 10. Timeline đề xuất
 
-| Tuan | Task |
-|------|------|
-| 1-2 | Thu thap them data (30+ videos), chay pipeline |
+| Tuần | Công việc |
+|------|----------|
+| 1–2 | Thu thập thêm dữ liệu (30+ videos), chạy pipeline |
 | 3 | Train full model + baselines + ablations |
-| 4 | Chay evaluation, statistical tests |
-| 5-6 | Viet paper |
-| 7 | Review noi bo, chinh sua |
-| 8 | Nop paper |
+| 4 | Chạy evaluation, kiểm định thống kê |
+| 5–6 | Viết paper |
+| 7 | Review nội bộ, chỉnh sửa |
+| 8 | Nộp paper |
