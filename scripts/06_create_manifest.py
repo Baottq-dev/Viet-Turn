@@ -20,6 +20,7 @@ import json
 import argparse
 import random
 from pathlib import Path
+from collections import defaultdict
 from typing import List, Dict, Tuple
 
 if sys.platform == "win32":
@@ -68,6 +69,18 @@ def gather_files(
     return entries
 
 
+def _get_source_video(file_id: str) -> str:
+    """Extract source video ID from segment file_id.
+
+    '92tmp9tXzso_003' -> '92tmp9tXzso'
+    'NdGFee__zGc_006' -> 'NdGFee__zGc'  (handles double underscore in video ID)
+    """
+    # Segment suffix is always _NNN (3 digits) at the end
+    if len(file_id) >= 4 and file_id[-4] == "_" and file_id[-3:].isdigit():
+        return file_id[:-4]
+    return file_id
+
+
 def split_by_file(
     entries: List[Dict],
     train_ratio: float = 0.8,
@@ -75,23 +88,42 @@ def split_by_file(
     seed: int = 42,
 ) -> Tuple[List[Dict], List[Dict], List[Dict]]:
     """
-    Split entries into train/val/test by file (conversation-level split).
+    Split entries into train/val/test by SOURCE VIDEO to prevent data leakage.
+
+    All segments from the same source video go into the same split,
+    so the model never sees the same speakers in both train and test.
     """
     rng = random.Random(seed)
-    file_ids = [e["file_id"] for e in entries]
-    rng.shuffle(file_ids)
 
-    n = len(file_ids)
+    # Group segments by source video
+    video_to_entries = defaultdict(list)
+    for e in entries:
+        source = _get_source_video(e["file_id"])
+        video_to_entries[source].append(e)
+
+    # Shuffle source videos (not individual segments)
+    source_videos = sorted(video_to_entries.keys())
+    rng.shuffle(source_videos)
+
+    n = len(source_videos)
     n_train = int(n * train_ratio)
     n_val = int(n * val_ratio)
 
-    train_ids = set(file_ids[:n_train])
-    val_ids = set(file_ids[n_train:n_train + n_val])
-    test_ids = set(file_ids[n_train + n_val:])
+    train_videos = set(source_videos[:n_train])
+    val_videos = set(source_videos[n_train:n_train + n_val])
+    test_videos = set(source_videos[n_train + n_val:])
 
-    train = [e for e in entries if e["file_id"] in train_ids]
-    val = [e for e in entries if e["file_id"] in val_ids]
-    test = [e for e in entries if e["file_id"] in test_ids]
+    train = [e for src in train_videos for e in video_to_entries[src]]
+    val = [e for src in val_videos for e in video_to_entries[src]]
+    test = [e for src in test_videos for e in video_to_entries[src]]
+
+    # Sort within each split for deterministic order
+    train.sort(key=lambda e: e["file_id"])
+    val.sort(key=lambda e: e["file_id"])
+    test.sort(key=lambda e: e["file_id"])
+
+    print(f"\n  Source videos: {n} total -> "
+          f"train={len(train_videos)}, val={len(val_videos)}, test={len(test_videos)}")
 
     return train, val, test
 
@@ -142,11 +174,19 @@ def main():
         print(f"  {split_name}: {len(split_data)} files -> {manifest_path}")
 
     # Save split info
+    train_sources = sorted(set(_get_source_video(e["file_id"]) for e in train))
+    val_sources = sorted(set(_get_source_video(e["file_id"]) for e in val))
+    test_sources = sorted(set(_get_source_video(e["file_id"]) for e in test))
+
     split_info = {
         "total_files": len(entries),
+        "total_source_videos": len(train_sources) + len(val_sources) + len(test_sources),
         "train_files": len(train),
         "val_files": len(val),
         "test_files": len(test),
+        "train_source_videos": train_sources,
+        "val_source_videos": val_sources,
+        "test_source_videos": test_sources,
         "train_ids": [e["file_id"] for e in train],
         "val_ids": [e["file_id"] for e in val],
         "test_ids": [e["file_id"] for e in test],
