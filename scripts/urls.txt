@@ -1,12 +1,93 @@
-# MM-VAP-VI Test Videos - Vietnamese 2-person conversations (podcast/interview)
-# Da dang kenh/the loai de test pipeline toan dien
-# Format: host + guest, Vietnamese, 30-120 min
-# Use with: yt-dlp -x --audio-format wav --audio-quality 0 -o "data/audio/%(id)s.%(ext)s" -a scripts/urls.txt
+# MM-VAP-VI Full Dataset - Vietnamese 2-person conversations
+# 65 videos across 8 genres for diverse turn-taking patterns
+# Format: host + guest OR 2 co-hosts, Vietnamese, 20-120 min
+# Use with: python scripts/00_download_audio.py --urls scripts/urls.txt --output data/audio
+#
+# Genre distribution:
+#   - Interview/Lifestyle (Have A Sip):           20 videos
+#   - Entertainment talkshow (Bar Stories):        12 videos
+#   - Career/Professional (Spiderum NTMN):          8 videos
+#   - Discussion/Debate (Hoi Dong Cuu + misc):      5 videos
+#   - Casual conversation (Nhat Ky Ban Cong):        7 videos
+#   - Talkshow formal (Talksoul + VietSuccess):      5 videos
+#   - Co-host discussion (Duoc/Mat, Tan So 52Hz):    4 videos
+#   - Deep talk/Psychology:                          4 videos
+#
+# Total: ~65 videos, estimated ~60-80 hours of audio
 
 # =============================================================================
-# 1. BAR STORIES (Dustin On The Go) - Entertainment talkshow
-#    Host: Dustin Phuc Nguyen + 1 nghe si, tro chuyen trong bar, unscripted
-#    Kenh: youtube.com/channel/UCMqWdkIyvwsl4L4yHVODD1w
+# 1. HAVE A SIP (Vietcetera) - Lifestyle/Culture interview
+#    Host: Thuy Minh + 1 khach moi, phong van sau, studio quality
+#    Kenh: youtube.com/@vietcetera
+#    Uu diem: Audio sach, host tuong tac tot, nhieu backchannel tu nhien
+# =============================================================================
+
+# #246 - Dich gia, Hoa si Trinh Lu ~76 phut
+https://www.youtube.com/watch?v=92tmp9tXzso
+
+# #245 - Vinh Khuot ~98 phut
+https://www.youtube.com/watch?v=PW5ZRDPJv-Y
+
+# #243 - Van Mai Huong (ca si) ~57 phut
+https://www.youtube.com/watch?v=mUPQ2jDVUEs
+
+# #244 - Truong Giang (dien vien hai) ~72 phut
+https://www.youtube.com/watch?v=7qH_Jt1dNa0
+
+# #236 - Bich Phuong ~84 phut
+https://www.youtube.com/watch?v=JHnOdxWspmQ
+
+# #229 - Ha Anh Tuan ~83 phut
+https://www.youtube.com/watch?v=j9AuAesO8iw
+
+# #222 - Duy Manh ~93 phut
+https://www.youtube.com/watch?v=tMZtBMr2FEc
+
+# #218 - Chuyen gia Bui Kien Thanh ~82 phut
+https://www.youtube.com/watch?v=HWMyDWrk5zs
+
+# #209 - Trinh Lu (tinh yeu, le ly) ~82 phut
+https://www.youtube.com/watch?v=QfAnHdEnP-k
+
+# #199 - Binz ~65 phut
+https://www.youtube.com/watch?v=d-rnLMfAW4g
+
+# #186 - Nha van Nguyen Mot ~77 phut
+https://www.youtube.com/watch?v=OG6MrNRgQQI
+
+# #178 - TS Tam ly Ta Nhi A ~85 phut
+https://www.youtube.com/watch?v=Rk_d1RT4KHs
+
+# #172 - Hoang Nam Tien ~78 phut
+https://www.youtube.com/watch?v=ECiKtkjDrbw
+
+# #165 - Nha bao Duong Ngoc Trinh ~106 phut
+https://www.youtube.com/watch?v=Q_gR5V0SITs
+
+# #164 - Ca si My Linh ~99 phut
+https://www.youtube.com/watch?v=Am3LjMCJ23Y
+
+# #157 - NSND Bach Tuyet ~79 phut
+https://www.youtube.com/watch?v=ZzwZaHNqrVM
+
+# #155 - Giang Oi ~110 phut
+https://www.youtube.com/watch?v=qekQ8vNlbak
+
+# #137 - Jun Pham ~74 phut
+https://www.youtube.com/watch?v=o0d0dkKiZVg
+
+# #133 - TS Le Nguyen Phuong ~115 phut
+https://www.youtube.com/watch?v=RjEyy76OplE
+
+# #118 - Khanh Vy ~92 phut
+https://www.youtube.com/watch?v=pIrkcBp-UO8
+
+# =============================================================================
+# 2. BAR STORIES (Dustin On The Go) - Entertainment talkshow
+#    Host: Dustin Phuc Nguyen (hoac Truc Thuy Mieu) + 1 nghe si
+#    Tro chuyen trong bar, unscripted, intimate atmosphere
+#    Uu diem: Tu nhien, emotional, nhieu turn exchange
+#    Luu y: Co the co nhac nen nhe o mot so tap
 # =============================================================================
 
 # NSUT Thanh Loc - nghe si gao coi
@@ -18,75 +99,185 @@ https://www.youtube.com/watch?v=iOD9YfEkEdQ
 # Truc Nhan - ca si
 https://www.youtube.com/watch?v=QvwI2WtNVwc
 
-# =============================================================================
-# 2. HAVE A SIP (Vietcetera) - Lifestyle/Culture talkshow
-#    Host: Thuy Minh + 1 khach moi, phong van sau ve cuoc song
-# =============================================================================
+# TP26 - Dustin Phuc Nguyen: Mo Nhat ~66 phut
+https://www.youtube.com/watch?v=QaDdpqJtIjA
 
-# #243 Van Mai Huong (ca si) ~57 phut
-https://www.youtube.com/watch?v=mUPQ2jDVUEs
+# TP17 - Thu Minh ~60 phut
+https://www.youtube.com/watch?v=N8iSFc4ygT4
 
-# #244 Truong Giang (dien vien hai) ~1h12
-https://www.youtube.com/watch?v=7qH_Jt1dNa0
+# TP36 - Hieupc ~62 phut
+https://www.youtube.com/watch?v=JSkqKE6tvkY
 
-# =============================================================================
-# 3. VIETNAM INNOVATORS (Vietcetera) - Business/Tech/Startup
-#    Host: Hao Tran + business leaders, noi dung kinh doanh/cong nghe
-# =============================================================================
+# TP37 - Dieu Nhi ~59 phut
+https://www.youtube.com/watch?v=FYPRB7yFNy4
 
-# Ep376 - Macro Economic Expert
-https://www.youtube.com/watch?v=7gzW5d-1u6Q
+# TP31 - Xuan Lan ~58 phut
+https://www.youtube.com/watch?v=Jm6uuFowXsk
 
-# Ep374 - Dominic Scriven (Dragon Capital)
-https://www.youtube.com/watch?v=TCR3tIN1tt4
+# TP39 - Toc Tien ~67 phut
+https://www.youtube.com/watch?v=esUfime8fA4
 
-# =============================================================================
-# 4. KHONG CAY KHONG VE (Vietcetera) - Food/Culinary culture
-#    Host tro chuyen voi cac bep truong/chef ve am thuc Viet Nam
-# =============================================================================
+# TP24 - WOWY ~58 phut
+https://www.youtube.com/watch?v=WQ6CoiHqZ-8
 
-# Ep8 - Chef Sam Tran
-https://www.youtube.com/watch?v=xsDchkXuKYM
+# TP14 - H'Hen Nie ~50 phut
+https://www.youtube.com/watch?v=QX3QO4lOlyE
 
-# Ep6 - Chef Phan Le Anh Tu
-https://www.youtube.com/watch?v=3S57kOFXtw4
+# TP11 - Vu Cat Tuong ~42 phut
+https://www.youtube.com/watch?v=6VxdrtVVntU
 
 # =============================================================================
-# 5. COI MO (Vietcetera) - Social/Sexuality/Taboo topics
-#    2 host + khach moi, trao doi ve cac chu de xa hoi mo
+# 3. NGUOI TRONG MUON NGHE (Spiderum) - Career/Professional
+#    Host Spiderum + khach moi noi ve nghe nghiep cua ho
+#    Uu diem: Back-and-forth tot, da dang nghe nghiep, audio sach
 # =============================================================================
 
-# SS3 Ep1: Toi la ai giua muon van dinh nghia?
-https://www.youtube.com/watch?v=eKCYKNyIag0
+# EP49 - Chuyen gia tam ly 20 nam ~108 phut
+https://www.youtube.com/watch?v=a8hd8PmxQDw
+
+# EP44 - Tran Yanly, Hoc Nghi Thuc ~109 phut
+https://www.youtube.com/watch?v=5DgOa_ijIcE
+
+# EP41 - Cuu ky su Google ~59 phut
+https://www.youtube.com/watch?v=FCOFJso6jk4
+
+# Tam ly hoc va chua lanh - Keira Ngo ~75 phut
+https://www.youtube.com/watch?v=lr8Ty46EXPk
+
+# Startup - Tri Lecao ~75 phut
+https://www.youtube.com/watch?v=NdGFee__zGc
+
+# Nganh IT - Nguyen Hien ~58 phut
+https://www.youtube.com/watch?v=oosSQiXwxPY
+
+# EP26 - AI va cong viec ~60 phut
+https://www.youtube.com/watch?v=rzYBMDdcR34
+
+# Phap che - Tran Tuan Hieu ~66 phut
+https://www.youtube.com/watch?v=VZjiGLfQLhM
 
 # =============================================================================
-# TONG: 10 videos tu 5 show, 2 nguon khac nhau (Dustin On The Go + Vietcetera)
-# The loai: Entertainment, Lifestyle, Business, Food, Social
+# 4. HOI DONG CUU + DISCUSSION - Debate/Intellectual discussion
+#    Thao luan triet hoc, xa hoi, luat phap
+#    Luu y: Can loc tap chi co 2 nguoi noi
 # =============================================================================
 
-# --- KENH KHAC co the lay them bang yt-dlp (khong phai Vietcetera) ---
+# Du hoc sinh co la "nhan tai"? - Ban Tron Cuu ~103 phut
+https://www.youtube.com/watch?v=gpb-9bU5cJc
+
+# "Cuoc Chien Da Vu Tru" (EEAAO) - phan tich triet hoc/dien anh ~57 phut
+https://www.youtube.com/watch?v=W-4O3BNBgKU
+
+# Xe dien - xe may: Hien phap, tu do va thuyet am muu ~37 phut
+https://www.youtube.com/watch?v=SiMLrPEDH6o
+
+# TS Le Tham Duong tranh luan ve hanh phuc ~43 phut
+https://www.youtube.com/watch?v=fFgE8s-fl3g
+
+# GS Truong Nguyen Thanh - Doi thoai ~58 phut
+https://www.youtube.com/watch?v=K-UwIrg5Un4
+
+# =============================================================================
+# 5. NHAT KY BAN CONG (Minh Tu) - Casual conversation
+#    Host: Sieu mau Minh Tu + 1 khach moi, podcast ca nhan
+#    Uu diem: Casual, tu nhien, 2 nguoi, studio quality, nhieu tap
+# =============================================================================
+
+# Tap 26 - Minh Tu x Miu Le ~80 phut
+https://www.youtube.com/watch?v=sMWZJt9ydXI
+
+# Tap 1 - Body Shaming - Minh Tu x Doan Thien An ~68 phut
+https://www.youtube.com/watch?v=cPsB2n6z1co
+
+# Tap 15 - Tu Duy Cu - Minh Tu x Le Duong Bao Lam ~96 phut
+https://www.youtube.com/watch?v=5rAKgWs2DWk
+
+# Tap 10 - Noi so vo hinh - Minh Tu x Duc Si Tien ~93 phut
+https://www.youtube.com/watch?v=XXnvlOFUhHE
+
+# Tap 6 - Can bang cuoc song - Minh Tu x Long Chun ~73 phut
+https://www.youtube.com/watch?v=qDkC8_Aa2qs
+
+# Tap 19 - Dan than vao linh vuc moi - Minh Tu x Ngoc Chau ~86 phut
+https://www.youtube.com/watch?v=AiL-OKLuqdA
+
+# Tap 25 - Thach Thuc Va Thoi Gian - Minh Tu x Le Hoang Phuong ~94 phut
+https://www.youtube.com/watch?v=tqtT-hdxRok
+
+# =============================================================================
+# 6. TALKSOUL + VIETSUCCESS - Formal talkshow
+#    Phong van sau, format truyen hinh, audio broadcast quality
+# =============================================================================
+
+# Talksoul #1 - Truong Giang (Kenh14) ~68 phut
+https://www.youtube.com/watch?v=y-hgGTc3DVE
+
+# Talksoul #2 - Tran Thanh ~66 phut
+https://www.youtube.com/watch?v=yc4AogyBOfM
+
+# Talksoul #3 - My Tam ~57 phut
+https://www.youtube.com/watch?v=YqoDORc7j54
+
+# Talksoul #4 - Ho Ngoc Ha ~47 phut
+https://www.youtube.com/watch?v=tRV9mXGljR4
+
+# VietSuccess - Ca si My Tam ~74 phut
+https://www.youtube.com/watch?v=MaGtWACzRBo
+
+# =============================================================================
+# 7. DUC/MAT + TAN SO 52HZ - Co-host discussion (symmetric)
+#    2 host co dinh, trao doi y kien, KHONG phai interview
+#    Uu diem: Can bang luot noi, nhieu backchannel, turn exchange da dang
+# =============================================================================
+
+# Duoc/Mat EP1 - Thay Minh Niem, Thuy Minh ~56 phut
+https://www.youtube.com/watch?v=4AJwwoz7o6I
+
+# Duoc/Mat EP2 ~46 phut
+https://www.youtube.com/watch?v=X_rfW4bBVc4
+
+# Tan So 52Hz #01 - Mai Am Nhac, Jun Pham ~51 phut
+https://www.youtube.com/watch?v=TtLZ_XoGPKI
+
+# DSTpod #4 - Duc Si Tien + Trang Tran ~115 phut
+https://www.youtube.com/watch?v=XVlkNlXFbV0
+
+# =============================================================================
+# 8. DEEP TALK / PSYCHOLOGY - Tam ly, phat trien ban than
+#    Host + chuyen gia tam ly hoac tu van
+# =============================================================================
+
+# Binh Bong Bat - Hieu can tinh ~72 phut
+https://www.youtube.com/watch?v=Mmf92lwLxGo
+
+# HIEUTHUHAI - Featured Talk Kenh14 ~73 phut
+https://www.youtube.com/watch?v=VAspBNM_uMw
+
+# GS Truong Nguyen Thanh #111 - Nguoi Viet ~95 phut
+https://www.youtube.com/watch?v=I3ay4NNbnnA
+
+# Chuyen Nghe MC - Khanh Linh (Spiderum) ~37 phut
+https://www.youtube.com/watch?v=AKYyIxdsjXU
+
+# =============================================================================
+# TONG KET
+# =============================================================================
+# 65 videos, 8 the loai, ~60-80 gio audio
+# Diversity:
+#   - Interview (host-led): 32 videos (Have A Sip, Bar Stories)
+#   - Discussion (symmetric): 9 videos (Duoc/Mat, Hoi Dong Cuu, DSTpod)
+#   - Casual conversation: 7 videos (Nhat Ky Ban Cong)
+#   - Professional/Career: 8 videos (Spiderum NTMN)
+#   - Formal talkshow: 5 videos (Talksoul, VietSuccess)
+#   - Psychology/Deep talk: 4 videos
 #
-# Dustin On The Go / Bar Stories (playlist):
-#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/playlist?list=PLmjw17gIF28eneO3XAEQr97Qa9CK_SVYE"
+# Speaker balance:
+#   - Asymmetric (interview): ~50% - host hoi, guest tra loi
+#   - Balanced (co-host, casual): ~30% - 2 nguoi noi gan bang nhau
+#   - Mixed: ~20% - discussion, debate
 #
-# Giang Oi (vlog/podcast, 1.7M subs):
-#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/channel/UC-AJnWGWhPt3ReFnvzRZ-Kg/videos"
-#
-# Xuan Lan Official / Chuyen Ngai Noi (talkshow xa hoi, sieu mau Xuan Lan + khach moi):
-#   Tim tren YouTube: "Chuyện Ngại Nói với Xuân Lan"
-#
-# The Present Writer (Chi Nguyen PhD - giao duc/phat trien ban than):
-#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/c/ThePresentWriter/videos"
-#
-# Sunhuyn Podcast (tam su/self-love, 105 tap):
-#   yt-dlp --flat-playlist --print "%(url)s %(title)s %(duration_string)s" "https://www.youtube.com/c/Sunhuyn95/videos"
-
-# --- PLAYLISTS Vietcetera ---
-# Have A Sip (251 tap):
-#   https://www.youtube.com/playlist?list=PLWrhnsc6Cvcrp7HmEWu8q0p95pRyGmpHi
-# Vietnam Innovators (245 tap):
-#   https://www.youtube.com/playlist?list=PLWrhnsc6CvcosEZ5eC29w_Eo6bhJ-ZOnR
-# Khong Cay Khong Ve:
-#   https://www.youtube.com/playlist?list=PLWrhnsc6Cvcr_s7tqvBDI-AwB-s-l4GsU
-# Coi Mo:
-#   https://www.youtube.com/playlist?list=PLWrhnsc6CvcqIT6eFANBxu0ltSjpm1oXI
+# Luu y khi chay pipeline:
+#   1. Mot so video Bar Stories co nhac nen -> kiem tra diarization quality
+#   2. Video Hoi Dong Cuu co the co >2 speakers -> can verify sau diarization
+#   3. Coi Mo (Vietcetera) co 2 host + 1 guest = 3 nguoi -> da loai bo
+#   4. Vietnam Innovators co the noi tieng Anh -> da loai bo
