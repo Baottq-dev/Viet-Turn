@@ -128,6 +128,8 @@ def get_video_info(url: str) -> Optional[dict]:
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
         )
         if result.returncode != 0:
@@ -207,6 +209,8 @@ def download_and_convert(
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=600,  # 10 min timeout per video
         )
         if result.returncode != 0:
@@ -240,6 +244,8 @@ def download_and_convert(
             ],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=300,
         )
         if result.returncode != 0:
