@@ -12,7 +12,7 @@ import json
 import torch
 import numpy as np
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -65,12 +65,14 @@ class MMVAPEvaluator:
         all_labels = []
         all_va_matrices = []
         all_texts = []
+        all_text_snapshots = []
 
         for batch in tqdm(self.test_loader, desc="Evaluating"):
             audio = batch["audio_waveform"].to(self.device)
             labels = batch["vap_labels"]
             texts = batch["texts"]
             va_matrix = batch["va_matrix"]
+            text_snapshots = batch.get("text_snapshots", [None] * len(texts))
 
             audio_mask = None
             if "audio_lengths" in batch:
@@ -99,6 +101,7 @@ class MMVAPEvaluator:
             all_labels.append(labels)
             all_va_matrices.append(va_matrix)
             all_texts.extend(texts)
+            all_text_snapshots.extend(text_snapshots)
 
         # Concatenate (sample-level, not batch-level)
         all_logits = torch.cat(all_logits, dim=0)
@@ -160,7 +163,7 @@ class MMVAPEvaluator:
         # ── Vietnamese Analysis: Marker Impact ──
         # Build event list with text from batch data for marker analysis
         events_for_analysis = self._build_events_for_analysis(
-            gt_events, p_shift, all_va_matrices,
+            all_gt_events, all_p_shift, all_texts, all_text_snapshots,
         )
         if events_for_analysis:
             marker_results = analyze_marker_impact(
@@ -191,52 +194,74 @@ class MMVAPEvaluator:
 
     @staticmethod
     def _build_events_for_analysis(
-        gt_events: np.ndarray,
-        p_shift: np.ndarray,
-        all_va_matrices: torch.Tensor,
+        per_sample_gt_events: List[np.ndarray],
+        per_sample_p_shift: List[np.ndarray],
+        all_texts: List[str],
+        all_text_snapshots: List[Optional[List[Dict]]],
     ) -> list:
         """
         Build event list for Vietnamese marker impact analysis.
 
-        Extracts shift/hold event boundaries from gt_events and
-        creates event dicts with type and eval_frame.
+        Processes per-sample gt_events and populates text from
+        all_texts (window-level) and text_snapshots (frame-level).
         """
         events = []
-        in_event = False
-        event_type = None
-        start = 0
+        frame_offset = 0
 
-        for t in range(len(gt_events)):
-            current = int(gt_events[t])
-            if current in (0, 1) and (not in_event or current != event_type):
-                if in_event:
-                    mid = (start + t) // 2
+        for sample_idx, gt_events in enumerate(per_sample_gt_events):
+            p_shift = per_sample_p_shift[sample_idx]
+            base_text = all_texts[sample_idx] if sample_idx < len(all_texts) else ""
+            snapshots = all_text_snapshots[sample_idx] if sample_idx < len(all_text_snapshots) and all_text_snapshots[sample_idx] else []
+
+            def _text_at_frame(rel_frame):
+                """Get cumulative text at a relative frame within this window."""
+                text = base_text
+                for snap in snapshots:
+                    if snap.get("relative_frame", snap.get("frame", 0)) <= rel_frame:
+                        text = snap.get("text", text)
+                    else:
+                        break
+                return text
+
+            in_event = False
+            event_type = None
+            start = 0
+
+            for t in range(len(gt_events)):
+                current = int(gt_events[t])
+                if current in (0, 1) and (not in_event or current != event_type):
+                    if in_event:
+                        mid = (start + t) // 2
+                        events.append({
+                            "type": "shift" if event_type == 1 else "hold",
+                            "eval_frame": frame_offset + mid,
+                            "text": _text_at_frame(mid),
+                        })
+                    start = t
+                    event_type = current
+                    in_event = True
+                elif current == 2:
+                    if in_event:
+                        mid = (start + t) // 2
+                        events.append({
+                            "type": "shift" if event_type == 1 else "hold",
+                            "eval_frame": frame_offset + mid,
+                            "text": _text_at_frame(mid),
+                        })
+                        in_event = False
+
+            if in_event:
+                mid = (start + len(gt_events)) // 2
+                global_mid = frame_offset + mid
+                total_p = sum(len(ps) for ps in per_sample_p_shift)
+                if global_mid < total_p:
                     events.append({
                         "type": "shift" if event_type == 1 else "hold",
-                        "eval_frame": mid,
-                        "text": "",
+                        "eval_frame": global_mid,
+                        "text": _text_at_frame(mid),
                     })
-                start = t
-                event_type = current
-                in_event = True
-            elif current == 2:
-                if in_event:
-                    mid = (start + t) // 2
-                    events.append({
-                        "type": "shift" if event_type == 1 else "hold",
-                        "eval_frame": mid,
-                        "text": "",
-                    })
-                    in_event = False
 
-        if in_event:
-            mid = (start + len(gt_events)) // 2
-            if mid < len(p_shift):
-                events.append({
-                    "type": "shift" if event_type == 1 else "hold",
-                    "eval_frame": mid,
-                    "text": "",
-                })
+            frame_offset += len(gt_events)
 
         return events
 
@@ -335,16 +360,19 @@ class MMVAPEvaluator:
         full_results = _compute_metrics_for_indices(list(range(N)))
 
         # Bootstrap resampling
+        import warnings
         rng = np.random.RandomState(42)
         alpha = 1.0 - ci
         bootstrap_metrics = {k: [] for k in full_results}
 
-        for _ in tqdm(range(n_bootstrap), desc="Bootstrap"):
-            boot_idx = rng.choice(N, size=N, replace=True).tolist()
-            boot_results = _compute_metrics_for_indices(boot_idx)
-            for k, v in boot_results.items():
-                if isinstance(v, (int, float)) and not np.isnan(v):
-                    bootstrap_metrics[k].append(v)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            for _ in tqdm(range(n_bootstrap), desc="Bootstrap"):
+                boot_idx = rng.choice(N, size=N, replace=True).tolist()
+                boot_results = _compute_metrics_for_indices(boot_idx)
+                for k, v in boot_results.items():
+                    if isinstance(v, (int, float)) and not np.isnan(v):
+                        bootstrap_metrics[k].append(v)
 
         # Compute CIs
         final = {}
