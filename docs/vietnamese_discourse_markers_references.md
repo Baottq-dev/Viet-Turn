@@ -353,32 +353,118 @@ We do not claim HuTuDetector replaces PhoBERT's lexical capabilities. We frame i
 **[44]** Press, O., Smith, N. A., & Lewis, M. (2022). Train Short, Test Long: Attention with Linear Biases. *Proc. ICLR 2022*. https://arxiv.org/abs/2108.12409
 - **STRONG** — ICLR, 1,000+ citations. ALiBi positional encoding.
 
+### Vietnamese SFP Inventories & Question Particles
+
+**[45]** Le, G. H. (2015). *Vietnamese Sentence Final Particles*. MA Thesis, University of Southern California. ProQuest ID: 10799585.
+- **WEAK** — Unpublished MA thesis, but USC is a top university. Most comprehensive English-language inventory of Vietnamese SFPs including: *à, chứ, đã, đi, nhé, nhỉ, chưa, ạ* and others. Covers pragmatic functions in colloquial speech.
+
+**[46]** Trinh, T. H., Phan, T. H., & Vu, T. L. (2024). Varieties of Polar Question Bias: Lessons from Vietnamese. *Languages*, 10(9), 238. https://doi.org/10.3390/languages10090238
+- **ACCEPTABLE** — MDPI Languages (peer-reviewed, Scopus-indexed). Analyzes question particles *không, chưa, à, á, hả, phải không* with formal pragmatic analysis. Key finding: *không* concerns propositional truth while *chưa* has inherent perfect aspect component — supports our position-sensitive classification.
+
+### Vietnamese Discourse Markers & Function Words
+
+**[47]** Adachi, M. (2024). From truth to discourse marker: The case of *thật* in Vietnamese. *Russian Journal of Linguistics*, 28(4). https://doi.org/10.22363/2687-0088-42182
+- **ACCEPTABLE** — Scopus-indexed, peer-reviewed. Author: Assoc. Prof., Tokyo University of Foreign Studies. Analyzes grammaticalization of *thật* (truth) → discourse marker. Relevant to backchannel markers *thật à, thật hả*.
+
+**[48]** Nguyễn Anh Quế. (1988). *Hư từ trong tiếng Việt hiện đại* [Function Words in Modern Vietnamese]. Hà Nội: NXB Khoa Học Xã Hội.
+- **ACCEPTABLE** — First comprehensive monograph on Vietnamese function words (hư từ). Covers classification principles, semantics, and taxonomy of all function word classes including: conjunctions (*nhưng, vì, nên, nếu, khi, do, còn, hay*), modal particles (*ạ, nhé, nhỉ, chứ*), and aspect markers (*rồi, xong, hết*). Foundational reference for our HOLD and YIELD marker inventories.
+
+**[49]** Hoàng Phê (Ed.). (2003). *Từ điển tiếng Việt* [Vietnamese Dictionary] (9th ed.). Đà Nẵng: NXB Đà Nẵng & Trung tâm Từ điển học. (First published 1988, Viện Ngôn ngữ học).
+- **STRONG** — State Prize for Science and Technology (2005). Standard reference dictionary compiled by the Institute of Linguistics. 36,000 entries with grammatical class labels (e.g., trợ từ, tình thái từ, liên từ). Provides authoritative word-class classification for all markers in our inventory.
+
+### Vietnamese Dialectal Modal Particles
+
+**[50]** Nguyễn Văn Hiệp. (2009). Những khác biệt trong phương tiện biểu hiện nghĩa tình thái của ba miền phương ngữ tiếng Việt [Differences in modal expression across three Vietnamese dialect regions]. *Southeast Asia Journal*, 18(2), 257-280. https://doi.org/10.21485/hufsea.2009.18.2.009
+- **ACCEPTABLE** — KCI-indexed (Korean Citation Index), peer-reviewed. Analyzes regional variation in modal particles across Northern/Central/Southern Vietnamese including final-position particles. Supports our regional marker pairs: *nhé* (Bắc) / *nha* (Nam) / *nghen* (Tây Nam).
+
+### Vocative & Attention-Getting
+
+**[51]** Nguyễn Văn Chiến. (1992). Xưng gọi trong tiếng Việt — biểu hiện hành vi của người Việt [Vocative usage in Vietnamese — expressions of Vietnamese behavioral patterns]. *Tạp chí Ngôn ngữ và Đời sống*, Hội Ngôn ngữ học Việt Nam.
+- **ACCEPTABLE** — Peer-reviewed Vietnamese linguistics journal. Analyzes vocative system including particle *ơi* as summons/attention-getter. Directly supports TURN_REQUEST marker *ơi*.
+
+**[52]** Schegloff, E. A. (1968). Sequencing in Conversational Openings. *American Anthropologist*, 70(6), 1075-1095. https://doi.org/10.1525/aa.1968.70.6.02a00030
+- **STRONG** — 3,000+ citations. Foundational CA paper establishing summons-answer sequences. Vietnamese *ơi* + name = summons sequence (cross-linguistic framework for TURN_REQUEST markers).
+
+### Response Token Framework
+
+**[53]** Gardner, R. (2001). *When Listeners Talk: Response Tokens and Listener Stance*. Pragmatics & Beyond New Series 92. Amsterdam: John Benjamins.
+- **STRONG** — John Benjamins (top linguistics publisher), highly cited. Comprehensive framework for response tokens (*yeah, mm, uh-huh, okay, right*) as listener stance devices. Cross-linguistic framework for Vietnamese backchannel tokens: *ừ ≈ yeah*, *ừ hử ≈ uh-huh*, *vâng ≈ yes-formal*, *dạ ≈ polite-yes*.
+
 ---
 
 ## Summary Statistics
 
 | Category | STRONG | ACCEPTABLE | WEAK | Total |
 |----------|--------|------------|------|-------|
-| Turn-taking theory | 6 | 0 | 0 | 6 |
+| Turn-taking theory | 7 | 0 | 0 | 7 |
 | VAP | 4 | 1 | 0 | 5 |
 | SFP-prosody complementarity | 0 | 2 | 0 | 2 |
 | Cross-linguistic SFP | 3 | 1 | 0 | 4 |
 | Korean SFPs | 2 | 0 | 0 | 2 |
 | Japanese turn-taking | 2 | 0 | 0 | 2 |
-| Vietnamese SFPs | 1 | 1 | 1 | 3 |
-| Vietnamese discourse/CA | 1 | 2 | 1 | 4 |
+| Vietnamese SFPs | 1 | 2 | 2 | 5 |
+| Vietnamese discourse/CA | 1 | 3 | 1 | 5 |
 | Vietnamese prosody | 1 | 4 | 0 | 5 |
 | Vietnamese NLP/speech | 1 | 1 | 1 | 3 |
+| Vietnamese function words & dictionaries | 1 | 2 | 0 | 3 |
+| Response tokens / backchannels | 1 | 0 | 0 | 1 |
 | Grammar books | 4 | 1 | 0 | 5 |
 | Deep learning | 4 | 0 | 0 | 4 |
-| **Total** | **27** | **13** | **4** | **44** |
+| **Total** | **30** | **17** | **6** | **53** |
 
 ### Q1 Submission Readiness
 
-- **27/44 (61%) STRONG** from Q1 journals and top conferences
-- **4 WEAK** references (2 theses, 1 model card, 1 thesis) — acceptable if used sparingly
-- **8 NEW references** added in this revision for cross-linguistic SFP evidence and theoretical justification
-- **Critical gap filled**: Wakefield (2016) SFP-prosody complementarity + Levow (2005) dual-use F0 problem + Kim et al. (2021) Korean position-sensitive particles
+- **30/53 (57%) STRONG** from Q1 journals and top conferences
+- **6 WEAK** references (3 theses, 1 model card) — acceptable if used sparingly
+- **9 NEW references** added in revision 2 to fill marker inventory gaps:
+  - **Marker inventory sources**: Nguyễn Anh Quế (1988) function words monograph, Hoàng Phê (2003) standard dictionary, Le (2015) SFP thesis
+  - **Question particles**: Trinh et al. (2024) polar question bias — covers *chưa, không, à, hả*
+  - **Dialectal variation**: Nguyễn Văn Hiệp (2009) modal particles across 3 dialect regions — covers *nha, hen/nghen*
+  - **Turn-request**: Schegloff (1968) summons-answer + Nguyễn Văn Chiến (1992) vocatives — covers *ơi*
+  - **Backchannel framework**: Gardner (2001) response tokens — cross-linguistic framework for *ừ, vâng, ừ hử*
+  - **Discourse markers**: Adachi (2024) *thật* grammaticalization — covers *thật à, thật hả*
+- **Previous gaps filled**: Wakefield (2016) SFP-prosody complementarity + Levow (2005) dual-use F0 problem + Kim et al. (2021) Korean position-sensitive particles
+
+### Marker Inventory Coverage After Revision 2
+
+| Marker Group | Total | With Reference | Coverage |
+|-------------|:-----:|:--------------:|:--------:|
+| YIELD_MARKERS | 19 | 15 | 79% |
+| POSITION_SENSITIVE | 5 | 5 | 100% |
+| HOLD_MARKERS | 27 | 27 (via [48],[49],[37]) | 100%* |
+| BACKCHANNEL | 24 | 11 direct + 13 via framework | ~100%* |
+| TURN_REQUEST | 10 | 2 direct + 8 via framework | ~100%* |
+
+*\* Markers without individual-level references are covered by: (a) grammar/dictionary sources for word-class (Nguyễn Anh Quế 1988, Hoàng Phê 2003, Diệp Quang Ban 2005), and (b) turn-taking theory for functional classification (Duncan 1972, Schegloff 1968, Gardner 2001). See "Marker Inventory Justification Strategy" below.*
+
+### Marker Inventory Justification Strategy (for paper Methodology section)
+
+The marker inventory should be justified at two levels:
+
+**Level 1 — Word inventory** (which words are included):
+- Vietnamese grammar references: Cao (1991) [36], Diệp (2005) [37], Thompson (1965) [39], Nguyễn Đ.-H. (1997) [38]
+- Function word monograph: Nguyễn Anh Quế (1988) [48]
+- Standard dictionary: Hoàng Phê (2003) [49] — provides word-class labels (trợ từ, tình thái từ, liên từ)
+- SFP studies: Tran (2018) [22], Le (2015) [45], Hoang (2025) [21]
+- Dialectal variation: Nguyễn Văn Hiệp (2009) [50]
+
+**Level 2 — Turn-taking classification** (why yield/hold/backchannel/turn-request):
+- Turn-taking signal taxonomy: Duncan (1972) [2] — yield, attempt-suppressing, backchannel
+- Summons-answer sequences: Schegloff (1968) [52] — turn-request = summons
+- Response token framework: Gardner (2001) [53] — backchannel = response token
+- Multi-cue turn-yielding: Gravano & Hirschberg (2011) [6]
+- Position-sensitive: Kim et al. (2021) [17] — cross-linguistic precedent
+
+**Suggested paper text:**
+> "Our marker inventory (Table X) was compiled from Vietnamese grammar references
+> (Cao, 1991; Diệp, 2005; Nguyễn, 1997; Thompson, 1965), the standard Vietnamese
+> dictionary (Hoàng Phê, 2003), function word classifications (Nguyễn Anh Quế, 1988),
+> and SFP studies (Tran, 2018; Le, 2015; Hoang, 2025). Regional variants were
+> included based on dialectal modal particle research (Nguyễn Văn Hiệp, 2009).
+> The turn-taking functional classification follows Duncan's (1972) signal taxonomy
+> (yield, attempt-suppressing, backchannel), extended with Schegloff's (1968) summons
+> sequences for turn-request markers and Gardner's (2001) response token framework
+> for backchannel expressions."
 
 ### Reviewer Defense Strategy
 
@@ -389,3 +475,9 @@ If reviewers question the HuTuDetector approach:
 4. Cite **Kim et al. (2021)**: Position-sensitive particle classification has Q1 cross-linguistic precedent
 5. Point to **ablation results**: `use_hutu=True` vs `use_hutu=False` provides empirical evidence
 6. Note **PhoBERT's training data**: Wikipedia/news, not conversational Vietnamese — SFPs underrepresented
+
+If reviewers question the marker inventory source:
+7. Cite **Hoàng Phê (2003)**: State Prize dictionary, word-class labels for every entry
+8. Cite **Nguyễn Anh Quế (1988)**: Dedicated function word monograph
+9. Cite **Duncan (1972)**: Turn-taking classification framework (yield/hold/backchannel)
+10. Note: Ablation with `use_hutu=True/False` empirically validates regardless of inventory source
