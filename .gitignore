@@ -106,3 +106,6 @@ temp/
 .env.*.local
 secrets.json
 credentials.json
+
+# Reference VAP repository (cloned for reference)
+VoiceActivityProjection/
